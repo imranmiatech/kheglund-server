@@ -1,0 +1,432 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELED
+  EXPIRED
+  PAST_DUE
+}
+
+enum BillingPeriod {
+  MONTHLY
+  YEARLY
+  ONE_TIME
+}
+
+enum BillingStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum ResourceKind {
+  PDF
+  AUDIO
+  VIDEO
+  TEMPLATE
+  GUIDE
+  ARCHIVE
+}
+
+enum UploadPurpose {
+  AVATAR
+  RESOURCE
+  ARTICLE_COVER
+  ANNOUNCEMENT_COVER
+  OTHER
+}
+
+enum ContactStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  ARCHIVED
+}
+
+enum ContentVisibility {
+  PUBLIC
+  MEMBERS_ONLY
+}
+
+enum AnnouncementType {
+  GENERAL
+  PRODUCT
+  EVENT
+  ALERT
+}
+
+enum ActivityType {
+  RESOURCE_SAVED
+  RESOURCE_DOWNLOADED
+  RESOURCE_VIEWED
+  ARTICLE_READ
+  ANNOUNCEMENT_VIEWED
+  PROFILE_UPDATED
+  PLAN_CHANGED
+}
+
+enum FaqPage {
+  GENERAL
+  MEMBERSHIP
+  ABOUT
+  CONTACT
+}
+
+enum ContactChannelType {
+  EMAIL
+  PHONE
+  SOCIAL
+  LOCATION
+}
+
+model User {
+  id                     String                  @id @default(uuid())
+  name                   String
+  email                  String                  @unique
+  passwordHash           String
+  role                   Role                    @default(MEMBER)
+  isActive               Boolean                 @default(true)
+  stripeCustomerId       String?                 @unique
+  avatarPath             String?
+  avatarMimeType         String?
+  avatarFileSizeBytes    Int?
+  subscription           Subscription?
+  sessions               Session[]
+  passwordResetTokens    PasswordResetToken[]
+  billingTransactions    BillingTransaction[]
+  savedResources         SavedResource[]
+  resourceDownloads      ResourceDownload[]
+  articleReads           ArticleRead[]
+  dashboardActivities    DashboardActivity[]
+  contactSubmissions     ContactSubmission[]
+  uploadedFiles          FileUpload[]            @relation("UploadedBy")
+  notificationPreference NotificationPreference?
+  createdResources       Resource[]              @relation("ResourceCreatedBy")
+  createdArticles        Article[]               @relation("ArticleCreatedBy")
+  createdAnnouncements   Announcement[]          @relation("AnnouncementCreatedBy")
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  deletedAt              DateTime?
+}
+
+model Session {
+  id               String    @id @default(uuid())
+  userId           String
+  refreshTokenHash String
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MembershipPlan {
+  id            String               @id @default(uuid())
+  name          String
+  slug          String               @unique
+  description   String
+  priceCents    Int
+  billingPeriod BillingPeriod
+  benefits      Json
+  isActive      Boolean              @default(true)
+  subscriptions Subscription[]
+  transactions  BillingTransaction[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+}
+
+model Subscription {
+  id                     String               @id @default(uuid())
+  userId                 String               @unique
+  planId                 String
+  externalSubscriptionId String?              @unique
+  status                 SubscriptionStatus   @default(ACTIVE)
+  startsAt               DateTime
+  endsAt                 DateTime?
+  autoRenew              Boolean              @default(true)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  user                   User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                   MembershipPlan       @relation(fields: [planId], references: [id])
+  transactions           BillingTransaction[]
+}
+
+model BillingTransaction {
+  id                String         @id @default(uuid())
+  userId            String
+  subscriptionId    String?
+  planId            String
+  transactionId     String         @unique
+  externalReference String?        @unique
+  amountCents       Int
+  billingPeriod     BillingPeriod
+  status            BillingStatus
+  paidAt            DateTime?
+  createdAt         DateTime       @default(now())
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription      Subscription?  @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  plan              MembershipPlan @relation(fields: [planId], references: [id])
+}
+
+model ResourceCategory {
+  id          String     @id @default(uuid())
+  name        String
+  slug        String     @unique
+  description String?
+  resources   Resource[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model ResourceTag {
+  id        String                  @id @default(uuid())
+  name      String
+  slug      String                  @unique
+  resources ResourceTagOnResource[]
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+}
+
+model Resource {
+  id              String                  @id @default(uuid())
+  title           String
+  slug            String                  @unique
+  description     String
+  summary         String?
+  kind            ResourceKind
+  visibility      ContentVisibility       @default(MEMBERS_ONLY)
+  isPublished     Boolean                 @default(true)
+  fileSizeBytes   Int?
+  categoryId      String?
+  coverImagePath  String?
+  createdById     String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  publishedAt     DateTime?
+  category        ResourceCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy       User?                   @relation("ResourceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  files           ResourceFile[]
+  tags            ResourceTagOnResource[]
+  savedByUsers    SavedResource[]
+  downloads       ResourceDownload[]
+  dashboardEvents DashboardActivity[]
+}
+
+model ResourceTagOnResource {
+  resourceId String
+  tagId      String
+  resource   Resource    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  tag        ResourceTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([resourceId, tagId])
+}
+
+model FileUpload {
+  id            String         @id @default(uuid())
+  originalName  String
+  storageName   String
+  storagePath   String
+  mimeType      String
+  sizeBytes     Int
+  purpose       UploadPurpose
+  uploadedById  String?
+  createdAt     DateTime       @default(now())
+  uploadedBy    User?          @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  resourceFiles ResourceFile[]
+}
+
+model ResourceFile {
+  id           String     @id @default(uuid())
+  resourceId   String
+  fileUploadId String     @unique
+  label        String?
+  createdAt    DateTime   @default(now())
+  resource     Resource   @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  fileUpload   FileUpload @relation(fields: [fileUploadId], references: [id], onDelete: Cascade)
+}
+
+model SavedResource {
+  userId     String
+  resourceId String
+  savedAt    DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, resourceId])
+}
+
+model ResourceDownload {
+  id           String   @id @default(uuid())
+  userId       String
+  resourceId   String
+  downloadedAt DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource     Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+}
+
+model ArticleTag {
+  id        String                @id @default(uuid())
+  name      String
+  slug      String                @unique
+  articles  ArticleTagOnArticle[]
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+}
+
+model Article {
+  id              String                @id @default(uuid())
+  title           String
+  slug            String                @unique
+  summary         String
+  content         String
+  visibility      ContentVisibility     @default(MEMBERS_ONLY)
+  isPublished     Boolean               @default(true)
+  coverImagePath  String?
+  createdById     String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  publishedAt     DateTime?
+  createdBy       User?                 @relation("ArticleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  tags            ArticleTagOnArticle[]
+  reads           ArticleRead[]
+  dashboardEvents DashboardActivity[]
+}
+
+model ArticleTagOnArticle {
+  articleId String
+  tagId     String
+  article   Article    @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       ArticleTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+}
+
+model ArticleRead {
+  id              String    @id @default(uuid())
+  userId          String
+  articleId       String
+  progressPercent Int       @default(0)
+  lastReadAt      DateTime  @default(now())
+  completedAt     DateTime?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article         Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+}
+
+model Announcement {
+  id              String              @id @default(uuid())
+  title           String
+  slug            String              @unique
+  summary         String
+  content         String
+  type            AnnouncementType    @default(GENERAL)
+  visibility      ContentVisibility   @default(MEMBERS_ONLY)
+  isPublished     Boolean             @default(true)
+  createdById     String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  publishedAt     DateTime?
+  createdBy       User?               @relation("AnnouncementCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  dashboardEvents DashboardActivity[]
+}
+
+model DashboardActivity {
+  id             String        @id @default(uuid())
+  userId         String
+  type           ActivityType
+  title          String
+  description    String?
+  resourceId     String?
+  articleId      String?
+  announcementId String?
+  createdAt      DateTime      @default(now())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource       Resource?     @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  article        Article?      @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  announcement   Announcement? @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+}
+
+model ContactSubmission {
+  id        String        @id @default(uuid())
+  userId    String?
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  status    ContactStatus @default(NEW)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model NotificationPreference {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  announcementsEnabled  Boolean  @default(true)
+  productUpdatesEnabled Boolean  @default(true)
+  marketingEnabled      Boolean  @default(false)
+  newsletterEnabled     Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ContentPage {
+  id          String            @id @default(uuid())
+  slug        String            @unique
+  title       String
+  summary     String?
+  content     String
+  visibility  ContentVisibility @default(PUBLIC)
+  isPublished Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model FaqItem {
+  id          String   @id @default(uuid())
+  page        FaqPage
+  question    String
+  answer      String
+  sortOrder   Int      @default(0)
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ContactChannel {
+  id          String             @id @default(uuid())
+  type        ContactChannelType
+  label       String
+  value       String
+  helperText  String?
+  sortOrder   Int                @default(0)
+  isPublished Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
