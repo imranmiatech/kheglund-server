@@ -51,6 +51,7 @@ export class AuthService {
         name: dto.name,
         email: dto.email.toLowerCase(),
         passwordHash,
+        role: dto.role,
         subscription: freePlan
           ? {
               create: {
