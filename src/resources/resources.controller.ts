@@ -1,7 +1,7 @@
-import { Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { ResourceQueryDto } from './dto/resources.dto';
+import { ResourceQueryDto, CreateCommentDto } from './dto/resources.dto';
 import { ResourcesService } from './resources.service';
 
 @ApiTags('Resources')
@@ -28,7 +28,10 @@ export class ResourcesController {
     @CurrentUser() user: { id: string },
     @Query() query: ResourceQueryDto,
   ) {
-    return this.resourcesService.getLibraryFeed(user.id, query);
+    return this.resourcesService.getLibraryFeed(user.id, {
+      ...query,
+      targetModule: query.targetModule || 'LIBRARY',
+    });
   }
 
   @Get('saved')
@@ -81,5 +84,15 @@ export class ResourcesController {
   @ApiOperation({ summary: 'Track that a member viewed a resource' })
   markRead(@CurrentUser() user: { id: string }, @Param('id') id: string) {
     return this.resourcesService.markRead(user.id, id);
+  }
+
+  @Post(':id/comments')
+  @ApiOperation({ summary: 'Add a comment to a resource/article' })
+  addComment(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+    @Body() dto: CreateCommentDto,
+  ) {
+    return this.resourcesService.addComment(user.id, id, dto.text);
   }
 }

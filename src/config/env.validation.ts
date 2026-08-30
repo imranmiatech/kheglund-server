@@ -19,12 +19,17 @@ export const envValidationSchema = Joi.object({
   STRIPE_SECRET_KEY: Joi.string().allow('').optional(),
   STRIPE_WEBHOOK_SECRET: Joi.string().allow('').optional(),
   STRIPE_SUCCESS_URL: Joi.string()
-    .uri()
-    .default('http://localhost:3000/billing/success'),
+    .allow('')
+    .default('http://localhost:5173/payment/success'),
   STRIPE_CANCEL_URL: Joi.string()
-    .uri()
-    .default('http://localhost:3000/billing/cancel'),
+    .allow('')
+    .default('http://localhost:5173/payment/canceled'),
   STRIPE_BILLING_PORTAL_RETURN_URL: Joi.string()
-    .uri()
-    .default('http://localhost:3000/settings/billing'),
+    .allow('')
+    .default('http://localhost:5173/dashboard/payment'),
+  SMTP_HOST: Joi.string().allow('').optional(),
+  SMTP_PORT: Joi.number().optional(),
+  SMTP_USER: Joi.string().allow('').optional(),
+  SMTP_PASS: Joi.string().allow('').optional(),
+  SMTP_FROM: Joi.string().allow('').optional(),
 });

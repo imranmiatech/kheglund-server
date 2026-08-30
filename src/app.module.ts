@@ -19,6 +19,7 @@ import { AdminRolesModule } from './adminPanel/adminRoles/admin-roles.module';
 import { AdminSupportModule } from './adminPanel/adminSupport/admin-support.module';
 import { AdminSettingsModule } from './adminPanel/adminSettings/admin-settings.module';
 import { AdminMembershipModule } from './adminPanel/adminMembership/admin-membership.module';
+import { MailModule } from './mail/mail.module';
 import { SupportModule } from './support/support.module';
 import { ArticlesModule } from './articles/articles.module';
 import { ContactsModule } from './contacts/contacts.module';
@@ -36,6 +37,7 @@ import { UsersModule } from './users/users.module';
       validationSchema: envValidationSchema,
     }),
     PrismaModule,
+    MailModule,
     AuthModule,
     UsersModule,
     MembershipsModule,

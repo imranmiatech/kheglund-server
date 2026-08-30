@@ -38,10 +38,19 @@ export class AdminContentController {
   @Get(['content', 'resources'])
   @ApiOperation({
     summary:
-      'Get paginated content list with status tabs (All, Published, Draft) and fileType filter',
+      'Get paginated content list for Content module (PDF and Article only)',
   })
   getContent(@Query() query: AdminContentQueryDto) {
-    return this.adminContentService.getContent(query);
+    return this.adminContentService.getContent(query, { module: 'content' });
+  }
+
+  @Get('library')
+  @ApiOperation({
+    summary:
+      'Get paginated content list for Library module (PDF, Article, Video, Audio, Link, Image)',
+  })
+  getLibrary(@Query() query: AdminContentQueryDto) {
+    return this.adminContentService.getContent(query, { module: 'library' });
   }
 
   @Get(['content/:id', 'resources/:id'])

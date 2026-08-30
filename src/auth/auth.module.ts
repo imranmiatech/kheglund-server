@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { MailModule } from '../mail/mail.module';
 import { JwtStrategy } from './jwt.strategy';
 
 @Module({
@@ -12,6 +13,7 @@ import { JwtStrategy } from './jwt.strategy';
     ConfigModule,
     PassportModule,
     PrismaModule,
+    MailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ResourceKind } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadsService } from '../../uploads/uploads.service';
 import {
@@ -38,12 +39,24 @@ export class AdminContentService {
     return 'MEMBERS_ONLY';
   }
 
-  async getContent(query: AdminContentQueryDto) {
-    const page = query.page || 1;
-    const limit = query.limit || 10;
+  async getContent(
+    query: AdminContentQueryDto,
+    options: { module?: 'content' | 'library' } = {},
+  ) {
+    const page = Number(query.page ?? 1);
+    const limit = Number(query.limit ?? 10);
     const skip = (page - 1) * limit;
 
     const baseWhere: any = {};
+
+    if (query.targetModule) {
+      const modUpper = String(query.targetModule).toUpperCase();
+      baseWhere.targetModule = modUpper === 'LIBRARY' ? 'LIBRARY' : 'CONTENT';
+    } else if (options.module === 'content') {
+      baseWhere.targetModule = 'CONTENT';
+    } else if (options.module === 'library') {
+      baseWhere.targetModule = 'LIBRARY';
+    }
 
     if (query.search && query.search.trim() !== '') {
       const s = query.search.trim();
@@ -61,19 +74,16 @@ export class AdminContentService {
       baseWhere.isPublished = false;
     }
 
+    if (query.fileType) {
+      baseWhere.kind = this.mapFileTypeToKind(query.fileType);
+    }
+
     // Counts for tabs summary
     const [allCount, publishedCount, draftCount] = await Promise.all([
       this.prisma.resource.count({ where: baseWhere }),
       this.prisma.resource.count({ where: { ...baseWhere, isPublished: true } }),
       this.prisma.resource.count({ where: { ...baseWhere, isPublished: false } }),
     ]);
-
-    const fileTypeNorm = String(query.fileType || '').toLowerCase();
-    if (fileTypeNorm === 'pdf') {
-      baseWhere.kind = 'PDF';
-    } else if (fileTypeNorm === 'article') {
-      baseWhere.kind = 'GUIDE'; // or non-pdf
-    }
 
     const [resources, total] = await Promise.all([
       this.prisma.resource.findMany({
@@ -92,8 +102,7 @@ export class AdminContentService {
     ]);
 
     const formattedData = resources.map((r) => {
-      const fileType = r.kind === 'PDF' ? 'pdf' : 'article';
-      const fileTypeLabel = r.kind === 'PDF' ? 'Pdf' : 'Article';
+      const { fileType, fileTypeLabel } = this.mapKindToFileType(r.kind);
       const access = r.visibility === 'PUBLIC' ? 'Public' : 'Free';
       const status = r.isPublished ? 'Published' : 'Draft';
       const fileUpload = r.files[0]?.fileUpload;
@@ -117,6 +126,7 @@ export class AdminContentService {
         allowComments: true,
         showAllComments: true,
         createdAt: r.createdAt,
+        lastUpdated: r.updatedAt ? r.updatedAt.toLocaleDateString('en-US') : '-',
       };
     });
 
@@ -155,25 +165,26 @@ export class AdminContentService {
     }
 
     const fileUpload = resource.files[0]?.fileUpload;
-    const fileType = resource.kind === 'PDF' ? 'pdf' : 'article';
-    const fileTypeLabel = resource.kind === 'PDF' ? 'Pdf' : 'Article';
+    const { fileType, fileTypeLabel } = this.mapKindToFileType(resource.kind);
     const accessLevel = resource.visibility === 'PUBLIC' ? 'Public' : 'Free';
 
     const totalViewsCount = await this.prisma.dashboardActivity.count({
       where: { resourceId: id },
     });
 
-    const recentComments = resource.dashboardEvents.map((event) => ({
-      id: event.id,
-      userName: event.user?.name || 'Community Member',
-      userAvatar: event.user?.avatarPath || null,
-      date: event.createdAt.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }),
-      text: event.description || event.title,
-    }));
+    const recentComments = resource.dashboardEvents
+      .filter((e) => e.type === 'RESOURCE_COMMENTED')
+      .map((event) => ({
+        id: event.id,
+        userName: event.user?.name || event.title || 'Community Member',
+        userAvatar: event.user?.avatarPath || null,
+        date: event.createdAt.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        text: event.description || event.title,
+      }));
 
     const publishedDate = (resource.publishedAt || resource.createdAt).toLocaleDateString('en-US', {
       month: 'short',
@@ -223,8 +234,8 @@ export class AdminContentService {
       slug = `${slug}-${Date.now()}`;
     }
 
-    const fileTypeNorm = String(payload.fileType || 'pdf').toLowerCase();
-    const kind = fileTypeNorm === 'pdf' ? 'PDF' : 'GUIDE';
+    const kind = this.mapFileTypeToKind(payload.fileType);
+    const targetModule = String(payload.targetModule || 'CONTENT').toUpperCase() === 'LIBRARY' ? 'LIBRARY' : 'CONTENT';
     const visibility = this.mapAccessToVisibility(payload.accessLevel || 'Public');
 
     const resource = await this.prisma.resource.create({
@@ -234,6 +245,7 @@ export class AdminContentService {
         description: payload.content || payload.summary || payload.title,
         summary: payload.summary || null,
         kind,
+        targetModule,
         visibility,
         isPublished: payload.isPublished ?? true,
         createdById: userId,
@@ -262,7 +274,12 @@ export class AdminContentService {
 
     let kind = resource.kind;
     if (payload.fileType) {
-      kind = String(payload.fileType).toLowerCase() === 'pdf' ? 'PDF' : 'GUIDE';
+      kind = this.mapFileTypeToKind(payload.fileType);
+    }
+
+    let targetModule = resource.targetModule;
+    if (payload.targetModule) {
+      targetModule = String(payload.targetModule).toUpperCase() === 'LIBRARY' ? 'LIBRARY' : 'CONTENT';
     }
 
     let visibility = resource.visibility;
@@ -278,6 +295,7 @@ export class AdminContentService {
         description: payload.content ?? payload.summary,
         summary: payload.summary,
         kind,
+        targetModule,
         visibility,
         isPublished: payload.isPublished,
         publishedAt: payload.isPublished ? new Date() : resource.publishedAt,
@@ -329,5 +347,33 @@ export class AdminContentService {
       mimeType: fileUpload.mimeType,
       sizeBytes: fileUpload.sizeBytes,
     };
+  }
+
+  private mapKindToFileType(kind: string) {
+    switch (kind) {
+      case 'PDF':
+        return { fileType: 'pdf', fileTypeLabel: 'Pdf' };
+      case 'VIDEO':
+        return { fileType: 'video', fileTypeLabel: 'Video' };
+      case 'AUDIO':
+        return { fileType: 'audio', fileTypeLabel: 'Audio' };
+      case 'ARCHIVE':
+        return { fileType: 'link', fileTypeLabel: 'Link' };
+      case 'TEMPLATE':
+        return { fileType: 'image', fileTypeLabel: 'Image' };
+      case 'GUIDE':
+      default:
+        return { fileType: 'article', fileTypeLabel: 'Article' };
+    }
+  }
+
+  private mapFileTypeToKind(fileType?: string): ResourceKind {
+    const norm = String(fileType || 'pdf').toLowerCase();
+    if (norm === 'pdf') return 'PDF';
+    if (norm === 'video') return 'VIDEO';
+    if (norm === 'audio') return 'AUDIO';
+    if (norm === 'link') return 'ARCHIVE';
+    if (norm === 'image' || norm === 'png' || norm === 'jpg' || norm === 'jpeg') return 'TEMPLATE';
+    return 'GUIDE';
   }
 }

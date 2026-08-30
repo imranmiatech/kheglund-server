@@ -1,6 +1,6 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export const RESOURCE_KINDS = [
   'PDF',
@@ -83,9 +83,32 @@ export class ResourceQueryDto {
   @IsOptional()
   limit?: number;
 
+  @ApiPropertyOptional({
+    enum: ['CONTENT', 'LIBRARY', 'content', 'library'],
+    description: 'Filter by target module (CONTENT or LIBRARY)',
+  })
+  @IsOptional()
+  @IsString()
+  targetModule?: string;
+
+  @ApiPropertyOptional({
+    enum: ['CONTENT', 'LIBRARY', 'content', 'library'],
+    description: 'Filter by target module (CONTENT or LIBRARY)',
+  })
+  @IsOptional()
+  @IsString()
+  module?: string;
+
   @ApiPropertyOptional()
   @Type(() => Boolean)
   @IsOptional()
   @IsBoolean()
   savedOnly?: boolean;
+}
+
+export class CreateCommentDto {
+  @ApiProperty({ example: 'Great breakdown of the nutrition concepts!' })
+  @IsString()
+  @IsNotEmpty()
+  text: string;
 }

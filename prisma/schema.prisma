@@ -76,6 +76,7 @@ enum ActivityType {
   ANNOUNCEMENT_VIEWED
   PROFILE_UPDATED
   PLAN_CHANGED
+  RESOURCE_COMMENTED
 }
 
 enum FaqPage {
@@ -220,6 +221,7 @@ model Resource {
   description     String
   summary         String?
   kind            ResourceKind
+  targetModule    String                  @default("CONTENT") // "CONTENT" or "LIBRARY"
   visibility      ContentVisibility       @default(MEMBERS_ONLY)
   isPublished     Boolean                 @default(true)
   fileSizeBytes   Int?

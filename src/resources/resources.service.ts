@@ -29,9 +29,13 @@ export class ResourcesService {
   private async listResourcePage(userId: string, query: ResourceQueryDto) {
     const page = Number(query.page ?? 1);
     const limit = Number(query.limit ?? 12);
+    const targetModuleVal = query.targetModule || query.module;
+    const targetModuleUpper = targetModuleVal ? String(targetModuleVal).toUpperCase() : undefined;
+
     const where: Prisma.ResourceWhereInput = {
       isPublished: true,
       AND: [
+        targetModuleUpper ? { targetModule: targetModuleUpper } : {},
         query.search
           ? {
               OR: [
@@ -88,6 +92,10 @@ export class ResourcesService {
         tags: { include: { tag: true } },
         files: { include: { fileUpload: true } },
         savedByUsers: { where: { userId } },
+        dashboardEvents: {
+          include: { user: true },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -95,9 +103,55 @@ export class ResourcesService {
       throw new NotFoundException('Resource not found.');
     }
 
+    const recentComments = resource.dashboardEvents
+      .filter((e) => e.type === 'RESOURCE_COMMENTED')
+      .map((event) => ({
+        id: event.id,
+        userName: event.user?.name || event.title || 'Community Member',
+        userAvatar: event.user?.avatarPath || null,
+        date: event.createdAt.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        text: event.description || event.title,
+      }));
+
     return {
       ...resource,
       isSaved: resource.savedByUsers.length > 0,
+      recentComments,
+      commentsCount: recentComments.length,
+    };
+  }
+
+  async addComment(userId: string, resourceId: string, text: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const resource = await this.prisma.resource.findUnique({ where: { id: resourceId } });
+    if (!resource) {
+      throw new NotFoundException('Resource not found.');
+    }
+
+    const activity = await this.prisma.dashboardActivity.create({
+      data: {
+        userId,
+        resourceId,
+        type: 'RESOURCE_COMMENTED',
+        title: user?.name || 'Community Member',
+        description: text,
+      },
+    });
+
+    return {
+      id: activity.id,
+      userName: user?.name || 'Community Member',
+      userAvatar: user?.avatarPath || null,
+      date: activity.createdAt.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+      text: activity.description,
     };
   }
 
@@ -401,9 +455,13 @@ export class ResourcesService {
   }
 
   private createResourceWhere(userId: string, query: ResourceQueryDto) {
+    const targetModuleVal = query.targetModule || query.module;
+    const targetModuleUpper = targetModuleVal ? String(targetModuleVal).toUpperCase() : undefined;
+
     return {
       isPublished: true,
       AND: [
+        targetModuleUpper ? { targetModule: targetModuleUpper } : {},
         query.search
           ? {
               OR: [

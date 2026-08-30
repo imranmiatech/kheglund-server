@@ -63,6 +63,14 @@ export class AdminContentQueryDto {
   @IsOptional()
   @IsString()
   fileType?: string;
+
+  @ApiPropertyOptional({
+    enum: ['CONTENT', 'LIBRARY', 'content', 'library'],
+    description: 'Filter by module',
+  })
+  @IsOptional()
+  @IsString()
+  targetModule?: string;
 }
 
 export class CreateContentDto {
@@ -81,12 +89,20 @@ export class CreateContentDto {
   content?: string;
 
   @ApiPropertyOptional({
-    enum: ['pdf', 'article', 'PDF', 'ARTICLE'],
+    enum: ['pdf', 'article', 'PDF', 'ARTICLE', 'video', 'audio', 'link', 'image'],
     default: 'pdf',
   })
   @IsOptional()
   @IsString()
   fileType?: string = 'pdf';
+
+  @ApiPropertyOptional({
+    enum: ['CONTENT', 'LIBRARY', 'content', 'library'],
+    default: 'CONTENT',
+  })
+  @IsOptional()
+  @IsString()
+  targetModule?: string = 'CONTENT';
 
   @ApiPropertyOptional({
     enum: ['All', 'Public', 'Free', 'Premium', 'PUBLIC', 'MEMBERS_ONLY'],
@@ -152,6 +168,11 @@ export class UpdateContentDto {
   @IsOptional()
   @IsString()
   fileType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  targetModule?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

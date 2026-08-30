@@ -24,12 +24,15 @@ type AuthUser = {
   name: string;
 };
 
+import { MailService } from '../mail/mail.service';
+
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -177,8 +180,12 @@ export class AuthService {
       },
     });
 
+    // Send email using SMTP Nodemailer
+    await this.mailService.sendPasswordResetEmail(user.email, rawToken, user.name);
+
     return {
-      message: 'Password reset token generated.',
+      message: 'Password reset email sent successfully.',
+      resetToken: rawToken,
       debugToken:
         this.configService.get('NODE_ENV') === 'production'
           ? undefined

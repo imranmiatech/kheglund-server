@@ -211,8 +211,14 @@ export class AdminMemberService {
           },
         },
         dashboardActivities: {
-          take: 5,
+          where: { type: 'RESOURCE_COMMENTED' },
+          take: 10,
           orderBy: { createdAt: 'desc' },
+          include: {
+            resource: {
+              select: { title: true },
+            },
+          },
         },
       },
     });
@@ -223,7 +229,7 @@ export class AdminMemberService {
 
     const [downloadsCount, activityCount] = await Promise.all([
       this.prisma.resourceDownload.count({ where: { userId: id } }),
-      this.prisma.dashboardActivity.count({ where: { userId: id } }),
+      this.prisma.dashboardActivity.count({ where: { userId: id, type: 'RESOURCE_COMMENTED' } }),
     ]);
 
     const registeredAt = user.createdAt;
@@ -271,7 +277,7 @@ export class AdminMemberService {
       recentComments: user.dashboardActivities.map((act) => ({
         id: act.id,
         comment: act.description || act.title,
-        targetTitle: act.title,
+        targetTitle: act.resource?.title || act.title || 'Library Resource / Article',
         createdAt: act.createdAt,
       })),
     };
