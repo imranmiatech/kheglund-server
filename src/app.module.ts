@@ -11,6 +11,15 @@ import { PrismaModule } from './prisma/prisma.module';
 import { BillingModule } from './billing/billing.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { AdminModule } from './admin/admin.module';
+import { AdminDashboardModule } from './adminPanel/adminDashboard/admin-dashboard.module';
+import { AdminMemberModule } from './adminPanel/adminMember/admin-member.module';
+import { AdminContentModule } from './adminPanel/adminContent/admin-content.module';
+import { AdminAnnouncementModule } from './adminPanel/adminAnnouncement/admin-announcement.module';
+import { AdminRolesModule } from './adminPanel/adminRoles/admin-roles.module';
+import { AdminSupportModule } from './adminPanel/adminSupport/admin-support.module';
+import { AdminSettingsModule } from './adminPanel/adminSettings/admin-settings.module';
+import { AdminMembershipModule } from './adminPanel/adminMembership/admin-membership.module';
+import { SupportModule } from './support/support.module';
 import { ArticlesModule } from './articles/articles.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -38,7 +47,16 @@ import { UsersModule } from './users/users.module';
     ContactsModule,
     SettingsModule,
     UploadsModule,
+    SupportModule,
     AdminModule,
+    AdminDashboardModule,
+    AdminMemberModule,
+    AdminContentModule,
+    AdminAnnouncementModule,
+    AdminRolesModule,
+    AdminSupportModule,
+    AdminSettingsModule,
+    AdminMembershipModule,
   ],
   controllers: [AppController],
   providers: [

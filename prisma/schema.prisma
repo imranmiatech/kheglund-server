@@ -108,6 +108,7 @@ model User {
   passwordResetTokens    PasswordResetToken[]
   billingTransactions    BillingTransaction[]
   savedResources         SavedResource[]
+  savedAnnouncements     SavedAnnouncement[]
   resourceDownloads      ResourceDownload[]
   articleReads           ArticleRead[]
   dashboardActivities    DashboardActivity[]
@@ -117,6 +118,8 @@ model User {
   createdResources       Resource[]              @relation("ResourceCreatedBy")
   createdArticles        Article[]               @relation("ArticleCreatedBy")
   createdAnnouncements   Announcement[]          @relation("AnnouncementCreatedBy")
+  supportTickets         SupportTicket[]
+  supportTicketMessages  SupportTicketMessage[]
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
   deletedAt              DateTime?
@@ -346,12 +349,27 @@ model Announcement {
   type            AnnouncementType    @default(GENERAL)
   visibility      ContentVisibility   @default(MEMBERS_ONLY)
   isPublished     Boolean             @default(true)
+  isPinned        Boolean             @default(false)
+  isBlog          Boolean             @default(false)
+  shareWithAnyone Boolean             @default(false)
+  coverImagePath  String?
   createdById     String?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   publishedAt     DateTime?
   createdBy       User?               @relation("AnnouncementCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  savedByUsers    SavedAnnouncement[]
   dashboardEvents DashboardActivity[]
+}
+
+model SavedAnnouncement {
+  userId         String
+  announcementId String
+  savedAt        DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@id([userId, announcementId])
 }
 
 model DashboardActivity {
@@ -391,6 +409,10 @@ model NotificationPreference {
   productUpdatesEnabled Boolean  @default(true)
   marketingEnabled      Boolean  @default(false)
   newsletterEnabled     Boolean  @default(true)
+  userJoinNotification  Boolean  @default(true)
+  adminAlerts           Boolean  @default(true)
+  memberNotifications   Boolean  @default(false)
+  paymentNotifications  Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -429,4 +451,79 @@ model ContactChannel {
   isPublished Boolean            @default(true)
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
+}
+
+model RolePermission {
+  id            String   @id @default(uuid())
+  key           String   @unique
+  name          String
+  publicVisitor Boolean  @default(false)
+  freeMember    Boolean  @default(true)
+  premiumMember Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model SupportTicket {
+  id           String                @id @default(uuid())
+  ticketNumber String                @unique
+  subject      String
+  description  String
+  status       SupportTicketStatus   @default(OPEN)
+  priority     SupportTicketPriority @default(MEDIUM)
+  userId       String
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     SupportTicketMessage[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+}
+
+model SupportTicketMessage {
+  id         String        @id @default(uuid())
+  ticketId   String
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  senderRole Role          @default(MEMBER)
+  message    String
+  createdAt  DateTime      @default(now())
+}
+
+model AdminPaymentInfo {
+  id                       String   @id @default(uuid())
+  label                    String?
+  methodType               String   @default("BANK_ACCOUNT") // CARD, BANK_ACCOUNT, E_BANKING
+  providerName             String?  // Bank name or Card brand (Mastercard, Visa, Chase)
+  bankName                 String?
+  accountHolderName        String
+  cardNumber               String?
+  cardLast4                String?
+  expiryMonth              Int?
+  expiryYear               Int?
+  accountNumber            String
+  routingNumber            String?
+  iban                     String?
+  branchName               String?
+  stripeConnectedAccountId String?
+  instructions             String?
+  isDefault                Boolean  @default(true)
+  isActive                 Boolean  @default(true)
+  createdById              String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 }

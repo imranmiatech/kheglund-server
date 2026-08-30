@@ -33,8 +33,11 @@ export class ResourcesController {
 
   @Get('saved')
   @ApiOperation({ summary: 'Get saved resources for the current member' })
-  getSavedResources(@CurrentUser() user: { id: string }) {
-    return this.resourcesService.getSavedResources(user.id);
+  getSavedResources(
+    @CurrentUser() user: { id: string },
+    @Query() query: ResourceQueryDto,
+  ) {
+    return this.resourcesService.getSavedResources(user.id, query);
   }
 
   @Get('downloads')

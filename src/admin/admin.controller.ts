@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -69,33 +70,6 @@ export class AdminController {
     @Body() dto: CreateArticleDto,
   ) {
     return this.adminService.createArticle(user.id, dto);
-  }
-
-  @Get('announcements')
-  @ApiOperation({ summary: 'List all announcements for admin management' })
-  listAnnouncements() {
-    return this.adminService.listAnnouncements();
-  }
-
-  @Post('announcements')
-  @ApiOperation({ summary: 'Create a new announcement' })
-  createAnnouncement(
-    @CurrentUser() user: { id: string },
-    @Body() dto: CreateAnnouncementDto,
-  ) {
-    return this.adminService.createAnnouncement(user.id, dto);
-  }
-
-  @Get('plans')
-  @ApiOperation({ summary: 'List all membership plans for admin management' })
-  listPlans() {
-    return this.adminService.listPlans();
-  }
-
-  @Post('plans')
-  @ApiOperation({ summary: 'Create a new membership plan' })
-  createPlan(@Body() dto: CreateMembershipPlanDto) {
-    return this.membershipsService.createPlan(dto);
   }
 
   @Get('content-pages')
@@ -201,3 +175,4 @@ export class AdminController {
     return this.adminService.createArticleTag(dto);
   }
 }
+

@@ -63,7 +63,9 @@ export class RefreshTokenDto {
 }
 
 export class LogoutDto {
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description: 'Revokes only this session. Omit to revoke all active sessions.',
+  })
   @IsOptional()
   @IsString()
   refreshToken?: string;

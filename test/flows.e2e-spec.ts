@@ -54,6 +54,12 @@ describe('Critical member flows (e2e)', () => {
               resources: { items: [] },
               articles: [],
             }),
+            getSavedResources: jest.fn().mockResolvedValue({
+              items: [],
+              page: 1,
+              limit: 0,
+              total: 0,
+            }),
           },
         },
         {
@@ -142,6 +148,20 @@ describe('Critical member flows (e2e)', () => {
         };
         expect(responseBody.resources).toBeDefined();
         expect(responseBody.articles).toBeDefined();
+      });
+  });
+
+  it('supports get all saved resources flow', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/resources/saved')
+      .expect(200)
+      .expect(({ body }) => {
+        const responseBody = body as {
+          items: unknown;
+          total: number;
+        };
+        expect(responseBody.items).toBeDefined();
+        expect(responseBody.total).toBeDefined();
       });
   });
 

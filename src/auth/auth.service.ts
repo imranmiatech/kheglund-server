@@ -128,17 +128,25 @@ export class AuthService {
     }
 
     try {
-      const payload = this.jwtService.verify<{ sessionId: string }>(
+      const payload = this.jwtService.verify<{ sub: string; sessionId: string }>(
         dto.refreshToken,
         {
           secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
         },
       );
 
-      await this.prisma.session.update({
-        where: { id: payload.sessionId },
+      if (payload.sub !== userId) {
+        throw new UnauthorizedException('Refresh token is invalid.');
+      }
+
+      const { count } = await this.prisma.session.updateMany({
+        where: { id: payload.sessionId, userId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+
+      if (!count) {
+        throw new UnauthorizedException('Refresh token is invalid.');
+      }
     } catch {
       throw new UnauthorizedException('Refresh token is invalid.');
     }
@@ -238,6 +246,7 @@ export class AuthService {
     const sessionId = existingSessionId ?? randomUUID();
     const accessPayload = {
       sub: user.id,
+      sessionId,
       email: user.email,
       role: user.role,
       name: user.name,

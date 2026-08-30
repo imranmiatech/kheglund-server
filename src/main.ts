@@ -11,6 +11,16 @@ async function bootstrap() {
     rawBody: true,
   });
 
+  const corsOrigins = process.env.CORS_ORIGINS?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  app.enableCors({
+    origin: corsOrigins?.length ? corsOrigins : true,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
   app.setGlobalPrefix(process.env.API_PREFIX ?? 'api/v1');
   app.useGlobalPipes(
     new ValidationPipe({
@@ -42,6 +52,8 @@ async function bootstrap() {
   const prismaService = app.get(PrismaService);
   prismaService.enableShutdownHooks(app);
 
-  await app.listen(process.env.PORT ?? 3000);
+  const port = Number(process.env.PORT ?? 3000);
+  await app.listen(port);
+  console.log(`http://localhost:${port}/api/v1`);
 }
 void bootstrap();

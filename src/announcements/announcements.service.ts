@@ -23,4 +23,47 @@ export class AnnouncementsService {
 
     return announcement;
   }
+
+  async saveAnnouncement(userId: string, announcementId: string) {
+    const announcement = await this.prisma.announcement.findFirst({
+      where: { id: announcementId, isPublished: true },
+      select: { id: true },
+    });
+
+    if (!announcement) {
+      throw new NotFoundException('Announcement not found.');
+    }
+
+    await this.prisma.savedAnnouncement.upsert({
+      where: {
+        userId_announcementId: { userId, announcementId },
+      },
+      update: {},
+      create: { userId, announcementId },
+    });
+
+    return { message: 'Announcement saved successfully.' };
+  }
+
+  async getSavedAnnouncements(userId: string) {
+    const savedAnnouncements = await this.prisma.savedAnnouncement.findMany({
+      where: { userId },
+      include: { announcement: true },
+      orderBy: { savedAt: 'desc' },
+    });
+
+    return savedAnnouncements.map(({ announcement, savedAt }) => ({
+      ...announcement,
+      savedAt,
+      isSaved: true,
+    }));
+  }
+
+  async unsaveAnnouncement(userId: string, announcementId: string) {
+    await this.prisma.savedAnnouncement.deleteMany({
+      where: { userId, announcementId },
+    });
+
+    return { message: 'Announcement removed from saved items.' };
+  }
 }

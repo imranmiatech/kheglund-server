@@ -7,7 +7,12 @@ import { MembershipsModule } from '../memberships/memberships.module';
 import { ContactsModule } from '../contacts/contacts.module';
 
 @Module({
-  imports: [PrismaModule, UploadsModule, MembershipsModule, ContactsModule],
+  imports: [
+    PrismaModule,
+    UploadsModule,
+    MembershipsModule,
+    ContactsModule,
+  ],
   controllers: [AdminController],
   providers: [AdminService],
 })
