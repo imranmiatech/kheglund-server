@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { CreateSupportTicketDto, CreateTicketMessageDto } from './dto/support.dto';
 import { SupportService } from './support.service';
 
@@ -16,13 +17,14 @@ import { SupportService } from './support.service';
 export class SupportController {
   constructor(private readonly supportService: SupportService) {}
 
+  @Public()
   @Post('tickets')
-  @ApiOperation({ summary: 'Create a new support ticket' })
+  @ApiOperation({ summary: 'Create a new support ticket (Public or Logged-in)' })
   createTicket(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: { id: string } | undefined,
     @Body() dto: CreateSupportTicketDto,
   ) {
-    return this.supportService.createTicket(user.id, dto);
+    return this.supportService.createTicket(user?.id, dto);
   }
 
   @Get('tickets')

@@ -3,6 +3,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../../mail/mail.service';
 import {
   AdminReplyTicketDto,
   AdminTicketQueryDto,
@@ -11,47 +12,13 @@ import {
   UpdateSupportTicketDto,
 } from './dto/admin-support.dto';
 
-const DEFAULT_FAQS = [
-  {
-    question: 'What is Community Hub',
-    answer:
-      'A community hub is a centralized, multi-purpose public space designed to bring local residents, neighborhood groups, and public agencies together under one roof.',
-    page: 'MEMBERSHIP' as const,
-    sortOrder: 1,
-  },
-  {
-    question: 'Can I cancel my membership anytime?',
-    answer:
-      'Yes, you can cancel your membership at any time from your account settings page without cancellation fees.',
-    page: 'MEMBERSHIP' as const,
-    sortOrder: 2,
-  },
-  {
-    question: 'How much does membership cost?',
-    answer:
-      'We offer multiple tiers starting from Free membership up to Premium access. Details are available on the billing page.',
-    page: 'MEMBERSHIP' as const,
-    sortOrder: 3,
-  },
-  {
-    question: 'Is there a free trial available?',
-    answer:
-      'Yes, new members receive a 7-day free trial on selected subscription plans.',
-    page: 'MEMBERSHIP' as const,
-    sortOrder: 4,
-  },
-  {
-    question: 'What content is available to members?',
-    answer:
-      'Members get access to research guides, downloadable resources, community challenges, and live event announcements.',
-    page: 'MEMBERSHIP' as const,
-    sortOrder: 5,
-  },
-];
 
 @Injectable()
 export class AdminSupportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   private normalizeStatus(status?: string): 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' {
     if (!status) return 'OPEN';
@@ -93,6 +60,9 @@ export class AdminSupportService {
       baseWhere.OR = [
         { ticketNumber: { contains: s, mode: 'insensitive' } },
         { subject: { contains: s, mode: 'insensitive' } },
+        { name: { contains: s, mode: 'insensitive' } },
+        { email: { contains: s, mode: 'insensitive' } },
+        { phoneNumber: { contains: s, mode: 'insensitive' } },
         { user: { name: { contains: s, mode: 'insensitive' } } },
         { user: { email: { contains: s, mode: 'insensitive' } } },
       ];
@@ -141,16 +111,23 @@ export class AdminSupportService {
         year: 'numeric',
       });
 
+      const memberName = t.name || t.user?.name || 'Guest User';
+      const memberEmail = t.email || t.user?.email || null;
+
       return {
         id: t.id,
         ticket: t.ticketNumber,
         ticketNumber: t.ticketNumber,
         member: {
-          id: t.user.id,
-          name: t.user.name,
-          email: t.user.email,
-          avatar: t.user.avatarPath || null,
+          id: t.user?.id || null,
+          name: memberName,
+          email: memberEmail,
+          phoneNumber: t.phoneNumber || null,
+          avatar: t.user?.avatarPath || null,
         },
+        name: memberName,
+        email: memberEmail,
+        phoneNumber: t.phoneNumber || null,
         startDate: t.subject,
         subject: t.subject,
         description: t.description,
@@ -219,47 +196,108 @@ export class AdminSupportService {
       year: 'numeric',
     });
 
+    const memberName = t.name || t.user?.name || 'Guest User';
+    const memberEmail = t.email || t.user?.email || null;
+
     return {
       id: t.id,
       ticket: t.ticketNumber,
       ticketNumber: t.ticketNumber,
+      name: memberName,
+      email: memberEmail,
+      phoneNumber: t.phoneNumber || null,
       subject: t.subject,
       description: t.description,
       status: this.formatStatusBadge(t.status),
       rawStatus: t.status,
       priority: t.priority,
-      requestedBy: t.user.name,
-      customer: t.user,
+      requestedBy: memberName,
+      customer: t.user || {
+        id: null,
+        name: memberName,
+        email: memberEmail,
+        phoneNumber: t.phoneNumber || null,
+        avatarPath: null,
+      },
       created: createdFormatted,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-      messages: t.messages,
+      messages: t.messages.map((m) => ({
+        id: m.id,
+        senderId: m.senderId,
+        senderName: m.sender?.name || (m.senderRole === 'ADMIN' ? 'Admin Support' : memberName),
+        senderRole: m.senderRole,
+        message: m.message,
+        createdAt: m.createdAt,
+      })),
     };
   }
 
   async updateTicket(id: string, dto: UpdateSupportTicketDto) {
     const payload: UpdateSupportTicketDto = (dto as any).data || dto;
-    const existing = await this.prisma.supportTicket.findUnique({ where: { id } });
+    const existing = await this.prisma.supportTicket.findUnique({
+      where: { id },
+      include: { user: true },
+    });
     if (!existing) {
       throw new NotFoundException(`Support ticket with ID ${id} not found.`);
     }
 
+    const newStatus = payload.status ? this.normalizeStatus(payload.status) : existing.status;
+    const newPriority = payload.priority ? this.normalizePriority(payload.priority) : existing.priority;
+
     const updated = await this.prisma.supportTicket.update({
       where: { id },
       data: {
-        status: payload.status ? this.normalizeStatus(payload.status) : existing.status,
-        priority: payload.priority ? this.normalizePriority(payload.priority) : existing.priority,
-        subject: payload.subject ?? existing.subject,
-        description: payload.description ?? existing.description,
+        status: newStatus,
+        priority: newPriority,
       },
+      include: { user: true },
     });
+
+    const recipientEmail =
+      (payload as any).email ||
+      existing.email ||
+      existing.user?.email;
+
+    const recipientName =
+      existing.name ||
+      existing.user?.name ||
+      'Valued Customer';
+
+    const formattedStatus = this.formatStatusBadge(updated.status);
+
+    if (recipientEmail) {
+      this.mailService
+        .sendSupportStatusUpdateEmail(
+          recipientEmail,
+          recipientName,
+          updated.ticketNumber,
+          formattedStatus,
+          updated.subject,
+        )
+        .catch(() => {});
+    }
+
+    // Dynamic DB Notification creation
+    await this.prisma.notification.create({
+      data: {
+        userId: existing.userId || null,
+        title: `Ticket Updated: ${updated.ticketNumber}`,
+        message: `Status set to ${formattedStatus} for subject "${updated.subject}".`,
+        type: 'TICKET',
+        link: '/admin/support',
+        isRead: false,
+      },
+    }).catch(() => {});
 
     return this.getTicketById(updated.id);
   }
 
   async replyTicket(adminUserId: string, ticketId: string, dto: AdminReplyTicketDto) {
     const payload: AdminReplyTicketDto = (dto as any).data || dto;
-    const existing = await this.prisma.supportTicket.findUnique({ where: { id: ticketId } });
+    const existing = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      include: { user: true },
+    });
     if (!existing) {
       throw new NotFoundException(`Support ticket with ID ${ticketId} not found.`);
     }
@@ -277,6 +315,40 @@ export class AdminSupportService {
       where: { id: ticketId },
       data: { updatedAt: new Date() },
     });
+
+    const recipientEmail =
+      (payload as any).email ||
+      existing.email ||
+      existing.user?.email;
+
+    const recipientName =
+      existing.name ||
+      existing.user?.name ||
+      'Valued Customer';
+
+    if (recipientEmail) {
+      this.mailService
+        .sendSupportReplyEmail(
+          recipientEmail,
+          recipientName,
+          existing.ticketNumber,
+          payload.message,
+          existing.subject,
+        )
+        .catch(() => {});
+    }
+
+    // Dynamic DB Notification creation
+    await this.prisma.notification.create({
+      data: {
+        userId: existing.userId || null,
+        title: `New Reply on Ticket: ${existing.ticketNumber}`,
+        message: `Response: "${payload.message.slice(0, 80)}"`,
+        type: 'TICKET',
+        link: '/admin/support',
+        isRead: false,
+      },
+    }).catch(() => {});
 
     return newMsg;
   }
@@ -297,21 +369,9 @@ export class AdminSupportService {
   // --- FAQS ---
 
   async getFaqs() {
-    let items = await this.prisma.faqItem.findMany({
+    return this.prisma.faqItem.findMany({
       orderBy: { sortOrder: 'asc' },
     });
-
-    if (items.length === 0) {
-      await this.prisma.faqItem.createMany({
-        data: DEFAULT_FAQS,
-      });
-
-      items = await this.prisma.faqItem.findMany({
-        orderBy: { sortOrder: 'asc' },
-      });
-    }
-
-    return items;
   }
 
   async createFaq(dto: CreateFaqItemDto) {

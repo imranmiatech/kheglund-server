@@ -5,23 +5,103 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AnnouncementsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listAnnouncements() {
-    return this.prisma.announcement.findMany({
-      where: { isPublished: true },
-      orderBy: { publishedAt: 'desc' },
+  async listAnnouncements(query?: { search?: string }, userId?: string) {
+    const where: any = {
+      isPublished: true,
+      isBlog: false,
+    };
+
+    if (query?.search && query.search.trim() !== '') {
+      const s = query.search.trim();
+      where.OR = [
+        { title: { contains: s, mode: 'insensitive' } },
+        { summary: { contains: s, mode: 'insensitive' } },
+        { content: { contains: s, mode: 'insensitive' } },
+      ];
+    }
+
+    const items = await this.prisma.announcement.findMany({
+      where,
+      orderBy: [{ isPinned: 'desc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
     });
+
+    let savedIdsSet = new Set<string>();
+    if (userId) {
+      const saved = await this.prisma.savedAnnouncement.findMany({
+        where: { userId },
+        select: { announcementId: true },
+      });
+      savedIdsSet = new Set(saved.map((s) => s.announcementId));
+    }
+
+    return items.map((a) => ({
+      ...a,
+      isSaved: savedIdsSet.has(a.id),
+      coverPhoto: a.coverImagePath || null,
+      coverImage: a.coverImagePath || null,
+    }));
   }
 
-  async getAnnouncement(id: string) {
+  async listBlogs(query?: { search?: string }, userId?: string) {
+    const where: any = {
+      isPublished: true,
+      isBlog: true,
+    };
+
+    if (query?.search && query.search.trim() !== '') {
+      const s = query.search.trim();
+      where.OR = [
+        { title: { contains: s, mode: 'insensitive' } },
+        { summary: { contains: s, mode: 'insensitive' } },
+        { content: { contains: s, mode: 'insensitive' } },
+      ];
+    }
+
+    const items = await this.prisma.announcement.findMany({
+      where,
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    let savedIdsSet = new Set<string>();
+    if (userId) {
+      const saved = await this.prisma.savedAnnouncement.findMany({
+        where: { userId },
+        select: { announcementId: true },
+      });
+      savedIdsSet = new Set(saved.map((s) => s.announcementId));
+    }
+
+    return items.map((a) => ({
+      ...a,
+      isSaved: savedIdsSet.has(a.id),
+      coverPhoto: a.coverImagePath || null,
+      coverImage: a.coverImagePath || null,
+    }));
+  }
+
+  async getAnnouncement(id: string, userId?: string) {
     const announcement = await this.prisma.announcement.findUnique({
       where: { id },
     });
 
     if (!announcement || !announcement.isPublished) {
-      throw new NotFoundException('Announcement not found.');
+      throw new NotFoundException('Announcement or Blog post not found.');
     }
 
-    return announcement;
+    let isSaved = false;
+    if (userId) {
+      const saved = await this.prisma.savedAnnouncement.findFirst({
+        where: { userId, announcementId: id },
+      });
+      isSaved = !!saved;
+    }
+
+    return {
+      ...announcement,
+      isSaved,
+      coverPhoto: announcement.coverImagePath || null,
+      coverImage: announcement.coverImagePath || null,
+    };
   }
 
   async saveAnnouncement(userId: string, announcementId: string) {
@@ -31,7 +111,7 @@ export class AnnouncementsService {
     });
 
     if (!announcement) {
-      throw new NotFoundException('Announcement not found.');
+      throw new NotFoundException('Announcement or Blog not found.');
     }
 
     await this.prisma.savedAnnouncement.upsert({
@@ -42,7 +122,7 @@ export class AnnouncementsService {
       create: { userId, announcementId },
     });
 
-    return { message: 'Announcement saved successfully.' };
+    return { message: 'Item saved successfully.' };
   }
 
   async getSavedAnnouncements(userId: string) {
@@ -56,6 +136,8 @@ export class AnnouncementsService {
       ...announcement,
       savedAt,
       isSaved: true,
+      coverPhoto: announcement.coverImagePath || null,
+      coverImage: announcement.coverImagePath || null,
     }));
   }
 
@@ -64,6 +146,6 @@ export class AnnouncementsService {
       where: { userId, announcementId },
     });
 
-    return { message: 'Announcement removed from saved items.' };
+    return { message: 'Item removed from saved list.' };
   }
 }

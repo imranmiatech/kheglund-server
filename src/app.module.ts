@@ -26,6 +26,7 @@ import { ContactsModule } from './contacts/contacts.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { ResourcesModule } from './resources/resources.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { SettingsModule } from './settings/settings.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
@@ -38,6 +39,7 @@ import { UsersModule } from './users/users.module';
     }),
     PrismaModule,
     MailModule,
+    NotificationsModule,
     AuthModule,
     UsersModule,
     MembershipsModule,

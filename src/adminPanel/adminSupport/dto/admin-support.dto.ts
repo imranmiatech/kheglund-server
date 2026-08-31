@@ -51,12 +51,22 @@ export class UpdateSupportTicketDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  email?: string;
 }
 
 export class AdminReplyTicketDto {
   @ApiProperty({ example: 'Thank you for reaching out. We have resolved the issue...' })
   @IsString()
   message: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  email?: string;
 }
 
 export class CreateFaqItemDto {

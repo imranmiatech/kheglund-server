@@ -142,6 +142,18 @@ export class ResourcesService {
       },
     });
 
+    // Notify admin of new comment
+    await this.prisma.notification.create({
+      data: {
+        userId: null,
+        title: 'New Comment Posted',
+        message: `${user?.name || 'A member'} commented on "${resource.title}": "${text.slice(0, 60)}"`,
+        type: 'COMMENT',
+        link: '/admin/content',
+        isRead: false,
+      },
+    }).catch(() => {});
+
     return {
       id: activity.id,
       userName: user?.name || 'Community Member',

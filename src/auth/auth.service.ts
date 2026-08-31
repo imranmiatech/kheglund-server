@@ -45,9 +45,6 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    const freePlan = await this.prisma.membershipPlan.findUnique({
-      where: { slug: 'free' },
-    });
 
     const user = await this.prisma.user.create({
       data: {
@@ -55,17 +52,23 @@ export class AuthService {
         email: dto.email.toLowerCase(),
         passwordHash,
         role: dto.role,
-        subscription: freePlan
-          ? {
-              create: {
-                planId: freePlan.id,
-                startsAt: new Date(),
-                status: 'ACTIVE',
-              },
-            }
-          : undefined,
       },
     });
+
+    // 1. Notify admin of new member signup in DB
+    await this.prisma.notification.create({
+      data: {
+        userId: null,
+        title: 'New Member Signed Up',
+        message: `User ${user.name || user.email} just created an account.`,
+        type: 'USER_JOIN',
+        link: '/admin/member',
+        isRead: false,
+      },
+    }).catch(() => {});
+
+    // 2. Dispatch welcome email to user
+    this.mailService.sendWelcomeEmail(user.email, user.name).catch(() => {});
 
     return this.issueAuthTokens(user);
   }

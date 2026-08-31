@@ -116,6 +116,7 @@ model User {
   contactSubmissions     ContactSubmission[]
   uploadedFiles          FileUpload[]            @relation("UploadedBy")
   notificationPreference NotificationPreference?
+  notifications          Notification[]
   createdResources       Resource[]              @relation("ResourceCreatedBy")
   createdArticles        Article[]               @relation("ArticleCreatedBy")
   createdAnnouncements   Announcement[]          @relation("AnnouncementCreatedBy")
@@ -420,6 +421,19 @@ model NotificationPreference {
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String?
+  title     String
+  message   String
+  type      String   @default("INFO")
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model ContentPage {
   id          String            @id @default(uuid())
   slug        String            @unique
@@ -484,12 +498,15 @@ enum SupportTicketPriority {
 model SupportTicket {
   id           String                @id @default(uuid())
   ticketNumber String                @unique
+  name         String?
+  email        String?
+  phoneNumber  String?
   subject      String
   description  String
   status       SupportTicketStatus   @default(OPEN)
   priority     SupportTicketPriority @default(MEDIUM)
-  userId       String
-  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages     SupportTicketMessage[]
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt

@@ -34,22 +34,33 @@ export class AdminAnnouncementService {
     return 'MEMBERS_ONLY';
   }
 
-  private mapVisibilityToAccess(visibility: string): string {
-    if (visibility === 'PUBLIC') return 'Public';
-    return 'Free';
+  private parseBoolean(val: any, defaultVal = false): boolean {
+    if (val === undefined || val === null) return defaultVal;
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'string') {
+      const s = val.trim().toLowerCase();
+      if (s === 'true' || s === '1') return true;
+      if (s === 'false' || s === '0') return false;
+    }
+    return Boolean(val);
   }
 
-  async getAnnouncements(query: AdminAnnouncementQueryDto) {
+  // --- ANNOUNCEMENTS LIST & BLOGS LIST ---
+
+  async getAnnouncementsOnly(query: AdminAnnouncementQueryDto) {
+    return this.getAnnouncementsListByIsBlog(query, false);
+  }
+
+  async getBlogsOnly(query: AdminAnnouncementQueryDto) {
+    return this.getAnnouncementsListByIsBlog(query, true);
+  }
+
+  private async getAnnouncementsListByIsBlog(query: AdminAnnouncementQueryDto, isBlogQuery: boolean) {
     const page = query.page || 1;
     const limit = query.limit || 10;
     const skip = (page - 1) * limit;
 
-    const baseWhere: any = {};
-
-    // Filter by Announcement vs News/Blog kind
-    const kindNorm = String(query.kind || 'ANNOUNCEMENT').toUpperCase();
-    const isBlogQuery = kindNorm === 'NEWS_BLOG' || kindNorm === 'BLOG' || kindNorm === 'NEWS';
-    baseWhere.isBlog = isBlogQuery;
+    const baseWhere: any = { isBlog: isBlogQuery };
 
     if (query.search && query.search.trim() !== '') {
       const s = query.search.trim();
@@ -67,7 +78,6 @@ export class AdminAnnouncementService {
       baseWhere.isPublished = false;
     }
 
-    // Counts for tabs summary
     const [allCount, publishedCount, draftCount] = await Promise.all([
       this.prisma.announcement.count({ where: { isBlog: isBlogQuery } }),
       this.prisma.announcement.count({ where: { isBlog: isBlogQuery, isPublished: true } }),
@@ -131,6 +141,12 @@ export class AdminAnnouncementService {
     };
   }
 
+  async getAnnouncements(query: AdminAnnouncementQueryDto) {
+    const kindNorm = String(query.kind || 'ANNOUNCEMENT').toUpperCase();
+    const isBlogQuery = kindNorm === 'NEWS_BLOG' || kindNorm === 'BLOG' || kindNorm === 'NEWS';
+    return this.getAnnouncementsListByIsBlog(query, isBlogQuery);
+  }
+
   async getAnnouncementById(id: string) {
     const item = await this.prisma.announcement.findUnique({
       where: { id },
@@ -169,7 +185,9 @@ export class AdminAnnouncementService {
     };
   }
 
-  async createAnnouncement(userId: string, dto: CreateAnnouncementItemDto) {
+  // --- CREATE ANNOUNCEMENT (NO FILE) ---
+
+  async createAnnouncementOnly(userId: string, dto: CreateAnnouncementItemDto) {
     const payload: CreateAnnouncementItemDto = (dto as any).data || dto;
     let slug = this.slugify(payload.title);
     const existing = await this.prisma.announcement.findUnique({ where: { slug } });
@@ -177,12 +195,55 @@ export class AdminAnnouncementService {
       slug = `${slug}-${Date.now()}`;
     }
 
-    const kindNorm = String(payload.kind || 'ANNOUNCEMENT').toUpperCase();
-    const isBlog = kindNorm === 'NEWS_BLOG' || kindNorm === 'BLOG' || kindNorm === 'NEWS';
     const visibility = this.mapAccessToVisibility(payload.accessLevel || 'Public');
+    const isPublished = this.parseBoolean(payload.isPublished, true);
+    const isPinned = this.parseBoolean(payload.isPinned, false);
+    const shareWithAnyone = this.parseBoolean(payload.shareWithAnyone, false);
+
+    const item = await this.prisma.announcement.create({
+      data: {
+        title: payload.title,
+        slug,
+        summary: payload.summary || payload.title,
+        content: payload.content || payload.summary || payload.title,
+        visibility,
+        isPublished,
+        isPinned,
+        isBlog: false,
+        shareWithAnyone,
+        createdById: userId,
+        publishedAt: isPublished ? new Date() : null,
+      },
+    });
+
+    return this.getAnnouncementById(item.id);
+  }
+
+  // --- CREATE NEWS & BLOG (WITH INLINE IMAGE FILE) ---
+
+  async createBlogWithImage(
+    userId: string,
+    dto: CreateAnnouncementItemDto,
+    file?: Express.Multer.File,
+  ) {
+    const payload: CreateAnnouncementItemDto = (dto as any).data || dto;
+    let slug = this.slugify(payload.title);
+    const existing = await this.prisma.announcement.findUnique({ where: { slug } });
+    if (existing) {
+      slug = `${slug}-${Date.now()}`;
+    }
+
+    const visibility = this.mapAccessToVisibility(payload.accessLevel || 'Public');
+    const isPublished = this.parseBoolean(payload.isPublished, true);
+    const shareWithAnyone = this.parseBoolean(payload.shareWithAnyone, false);
 
     let coverImagePath = payload.coverImagePath || null;
-    if (payload.fileUploadId) {
+    if (file) {
+      const uploaded = await this.uploadsService.saveFile(file, 'ANNOUNCEMENT_COVER', userId);
+      if (uploaded) {
+        coverImagePath = uploaded.storagePath;
+      }
+    } else if (payload.fileUploadId) {
       const fileUpload = await this.prisma.fileUpload.findUnique({
         where: { id: payload.fileUploadId },
       });
@@ -198,30 +259,84 @@ export class AdminAnnouncementService {
         summary: payload.summary || payload.title,
         content: payload.content || payload.summary || payload.title,
         visibility,
-        isPublished: payload.isPublished ?? true,
-        isPinned: payload.isPinned ?? false,
-        isBlog,
-        shareWithAnyone: payload.shareWithAnyone ?? false,
+        isPublished,
+        isPinned: false,
+        isBlog: true,
+        shareWithAnyone,
         coverImagePath,
         createdById: userId,
-        publishedAt: payload.isPublished ? new Date() : null,
+        publishedAt: isPublished ? new Date() : null,
       },
     });
 
     return this.getAnnouncementById(item.id);
   }
 
-  async updateAnnouncement(id: string, dto: UpdateAnnouncementItemDto) {
+  async createAnnouncement(userId: string, dto: CreateAnnouncementItemDto) {
+    const payload: CreateAnnouncementItemDto = (dto as any).data || dto;
+    const kindNorm = String(payload.kind || 'ANNOUNCEMENT').toUpperCase();
+    const isBlog = kindNorm === 'NEWS_BLOG' || kindNorm === 'BLOG' || kindNorm === 'NEWS';
+
+    if (isBlog) {
+      return this.createBlogWithImage(userId, payload);
+    }
+    return this.createAnnouncementOnly(userId, payload);
+  }
+
+  // --- UPDATE ANNOUNCEMENT & BLOG ---
+
+  async updateAnnouncementOnly(id: string, dto: UpdateAnnouncementItemDto) {
     const payload: UpdateAnnouncementItemDto = (dto as any).data || dto;
     const existing = await this.prisma.announcement.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException(`Announcement or Blog with ID ${id} not found.`);
+      throw new NotFoundException(`Announcement with ID ${id} not found.`);
     }
 
-    let isBlog = existing.isBlog;
-    if (payload.kind) {
-      const kindNorm = String(payload.kind).toUpperCase();
-      isBlog = kindNorm === 'NEWS_BLOG' || kindNorm === 'BLOG' || kindNorm === 'NEWS';
+    let visibility = existing.visibility;
+    if (payload.accessLevel) {
+      visibility = this.mapAccessToVisibility(payload.accessLevel);
+    }
+
+    const isPublished = payload.isPublished !== undefined
+      ? this.parseBoolean(payload.isPublished, existing.isPublished)
+      : existing.isPublished;
+
+    const isPinned = payload.isPinned !== undefined
+      ? this.parseBoolean(payload.isPinned, existing.isPinned)
+      : existing.isPinned;
+
+    const shareWithAnyone = payload.shareWithAnyone !== undefined
+      ? this.parseBoolean(payload.shareWithAnyone, existing.shareWithAnyone)
+      : existing.shareWithAnyone;
+
+    const updated = await this.prisma.announcement.update({
+      where: { id },
+      data: {
+        title: payload.title ?? existing.title,
+        slug: payload.title ? this.slugify(payload.title) : undefined,
+        summary: payload.summary ?? existing.summary,
+        content: payload.content ?? existing.content,
+        visibility,
+        isPublished,
+        isPinned,
+        shareWithAnyone,
+        publishedAt: isPublished ? (existing.publishedAt || new Date()) : null,
+      },
+    });
+
+    return this.getAnnouncementById(updated.id);
+  }
+
+  async updateBlogWithImage(
+    id: string,
+    dto: UpdateAnnouncementItemDto,
+    file?: Express.Multer.File,
+    userId?: string,
+  ) {
+    const payload: UpdateAnnouncementItemDto = (dto as any).data || dto;
+    const existing = await this.prisma.announcement.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`News & Blog with ID ${id} not found.`);
     }
 
     let visibility = existing.visibility;
@@ -230,7 +345,12 @@ export class AdminAnnouncementService {
     }
 
     let coverImagePath = payload.coverImagePath ?? existing.coverImagePath;
-    if (payload.fileUploadId) {
+    if (file) {
+      const uploaded = await this.uploadsService.saveFile(file, 'ANNOUNCEMENT_COVER', userId || existing.createdById || undefined);
+      if (uploaded) {
+        coverImagePath = uploaded.storagePath;
+      }
+    } else if (payload.fileUploadId) {
       const fileUpload = await this.prisma.fileUpload.findUnique({
         where: { id: payload.fileUploadId },
       });
@@ -239,24 +359,34 @@ export class AdminAnnouncementService {
       }
     }
 
+    const isPublished = payload.isPublished !== undefined
+      ? this.parseBoolean(payload.isPublished, existing.isPublished)
+      : existing.isPublished;
+
+    const shareWithAnyone = payload.shareWithAnyone !== undefined
+      ? this.parseBoolean(payload.shareWithAnyone, existing.shareWithAnyone)
+      : existing.shareWithAnyone;
+
     const updated = await this.prisma.announcement.update({
       where: { id },
       data: {
-        title: payload.title,
+        title: payload.title ?? existing.title,
         slug: payload.title ? this.slugify(payload.title) : undefined,
-        summary: payload.summary,
-        content: payload.content,
+        summary: payload.summary ?? existing.summary,
+        content: payload.content ?? existing.content,
         visibility,
-        isPublished: payload.isPublished,
-        isPinned: payload.isPinned,
-        isBlog,
-        shareWithAnyone: payload.shareWithAnyone,
+        isPublished,
+        shareWithAnyone,
         coverImagePath,
-        publishedAt: payload.isPublished ? new Date() : existing.publishedAt,
+        publishedAt: isPublished ? (existing.publishedAt || new Date()) : null,
       },
     });
 
     return this.getAnnouncementById(updated.id);
+  }
+
+  async updateAnnouncement(id: string, dto: UpdateAnnouncementItemDto) {
+    return this.updateAnnouncementOnly(id, dto);
   }
 
   async togglePin(id: string, dto?: TogglePinDto) {
@@ -265,7 +395,7 @@ export class AdminAnnouncementService {
       throw new NotFoundException(`Announcement with ID ${id} not found.`);
     }
 
-    const isPinned = dto?.isPinned !== undefined ? dto.isPinned : !existing.isPinned;
+    const isPinned = dto?.isPinned !== undefined ? this.parseBoolean(dto.isPinned, !existing.isPinned) : !existing.isPinned;
     const updated = await this.prisma.announcement.update({
       where: { id },
       data: { isPinned },

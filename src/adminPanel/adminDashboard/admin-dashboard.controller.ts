@@ -34,8 +34,9 @@ export class AdminDashboardController {
   @ApiOperation({
     summary: 'Get consolidated Admin Dashboard overview metrics, MRR, attention counts, and announcements',
   })
-  getDashboardOverview(@CurrentUser() user: { id: string }) {
-    return this.adminDashboardService.getDashboardOverview(user.id);
+  getDashboardOverview(@CurrentUser() user: any) {
+    const userId = user?.id || user?.sub || user?.userId;
+    return this.adminDashboardService.getDashboardOverview(userId);
   }
 
   @Get('dashboard/activities')

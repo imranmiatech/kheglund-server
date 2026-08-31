@@ -28,11 +28,20 @@ export class AdminService {
     private readonly uploadsService: UploadsService,
   ) {}
 
-  async getDashboardOverview(userId: string) {
-    const adminUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true, email: true, role: true, avatarPath: true },
-    });
+  async getDashboardOverview(userId?: string) {
+    let adminUser = userId
+      ? await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, name: true, email: true, role: true, avatarPath: true },
+        })
+      : null;
+
+    if (!adminUser) {
+      adminUser = await this.prisma.user.findFirst({
+        where: { role: 'ADMIN' },
+        select: { id: true, name: true, email: true, role: true, avatarPath: true },
+      });
+    }
 
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -47,7 +56,8 @@ export class AdminService {
       activeSubscriptions,
       last30dTx,
       prev30dTx,
-      supportRequestsCount,
+      supportTicketsOpenCount,
+      contactSubmissionsCount,
       failedPaymentsCount,
       draftResourcesCount,
       draftArticlesCount,
@@ -83,18 +93,19 @@ export class AdminService {
           createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
         },
       }),
+      this.prisma.supportTicket.count({
+        where: { status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      }),
       this.prisma.contactSubmission.count({
         where: { status: { in: ['NEW', 'IN_PROGRESS'] } },
       }),
       this.prisma.billingTransaction.count({
-        where: { status: 'FAILED' },
+        where: { status: { in: ['FAILED', 'PENDING'] } },
       }),
       this.prisma.resource.count({ where: { isPublished: false } }),
       this.prisma.article.count({ where: { isPublished: false } }),
       this.prisma.announcement.count({ where: { isPublished: false } }),
-      this.prisma.resourceDownload.count({
-        where: { downloadedAt: { gte: thirtyDaysAgo } },
-      }),
+      this.prisma.resourceDownload.count(),
       this.prisma.announcement.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },
@@ -109,6 +120,8 @@ export class AdminService {
         },
       }),
     ]);
+
+    const supportRequestsCount = supportTicketsOpenCount + contactSubmissionsCount;
 
     const freeMembers = Math.max(0, totalMembers - premiumMembers);
     const contentPublished =

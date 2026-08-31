@@ -30,7 +30,16 @@ export class BillingService {
   }
 
   async getMyBilling(userId: string) {
-    let [transactions, subscription] = await Promise.all([
+    if (!userId) {
+      return {
+        currentPlan: null,
+        subscriptionStatus: 'INACTIVE',
+        transactions: [],
+        totalSpentCents: 0,
+      };
+    }
+
+    const [transactions, subscription] = await Promise.all([
       this.prisma.billingTransaction.findMany({
         where: { userId },
         include: { plan: true },
@@ -42,40 +51,26 @@ export class BillingService {
       }),
     ]);
 
-    if (transactions.length === 0 && subscription) {
-      const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const createdTx = await this.prisma.billingTransaction.create({
-        data: {
-          userId,
-          subscriptionId: subscription.id,
-          planId: subscription.planId,
-          transactionId: txId,
-          amountCents: subscription.plan.priceCents,
-          billingPeriod: subscription.plan.billingPeriod,
-          status: 'PAID',
-          paidAt: subscription.startsAt || new Date(),
-        },
-        include: { plan: true },
-      });
-      transactions = [createdTx];
-    }
-
     const totalSpentCents = transactions
       .filter((transaction) => transaction.status === 'PAID')
       .reduce((sum, transaction) => sum + transaction.amountCents, 0);
 
     return {
       currentPlan: subscription?.plan ?? null,
-      subscriptionStatus: subscription?.status ?? null,
+      subscriptionStatus: subscription?.status ?? 'INACTIVE',
       transactions,
       totalSpentCents,
     };
   }
 
   async createCheckoutSession(userId: string, dto: CreateCheckoutSessionDto) {
-    const [user, plan] = await Promise.all([
+    const [user, plan, currentSub] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId } }),
       this.prisma.membershipPlan.findUnique({ where: { id: dto.planId } }),
+      this.prisma.subscription.findUnique({
+        where: { userId },
+        include: { plan: true },
+      }),
     ]);
 
     if (!user) {
@@ -84,6 +79,20 @@ export class BillingService {
 
     if (!plan || !plan.isActive) {
       throw new NotFoundException('Membership plan not found or inactive.');
+    }
+
+    // Downgrade restriction: Cannot switch from active Premium plan to Free plan without cancelling first
+    const isCurrentActivePremium =
+      currentSub?.status === 'ACTIVE' &&
+      currentSub?.plan &&
+      currentSub.plan.priceCents > 0;
+
+    const isTargetFreePlan = plan.priceCents <= 0 || plan.slug === 'free';
+
+    if (isCurrentActivePremium && isTargetFreePlan) {
+      throw new BadRequestException(
+        'You cannot downgrade from an active Premium plan to a Free plan. Please cancel your current Premium subscription first.',
+      );
     }
 
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
@@ -400,6 +409,33 @@ export class BillingService {
     return customer.id;
   }
 
+  async verifySession(userId: string, sessionId?: string) {
+    if (sessionId) {
+      try {
+        const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+        if (secretKey) {
+          const stripe = this.getStripeClient();
+          const session = await stripe.checkout.sessions.retrieve(sessionId);
+          if (session) {
+            await this.handleCheckoutCompleted(session);
+          }
+        }
+      } catch (err: any) {
+        this.logger.error(`verifySession error for ${sessionId}: ${err.message}`);
+      }
+    }
+
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { userId },
+      include: { plan: true },
+    });
+
+    return {
+      success: true,
+      subscription,
+    };
+  }
+
   private async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const userId = session.metadata?.userId;
     const planId = session.metadata?.planId;
@@ -424,30 +460,47 @@ export class BillingService {
       },
     });
 
-    if (
-      session.mode === 'subscription' &&
+    const extSubId =
       typeof session.subscription === 'string'
-    ) {
-      await this.prisma.subscription.upsert({
-        where: { userId },
-        update: {
-          planId,
-          status: 'ACTIVE',
-          autoRenew: true,
-          externalSubscriptionId: session.subscription,
-          startsAt: new Date(),
-          endsAt: null,
-        },
-        create: {
-          userId,
-          planId,
-          status: 'ACTIVE',
-          autoRenew: true,
-          externalSubscriptionId: session.subscription,
-          startsAt: new Date(),
-        },
-      });
-    }
+        ? session.subscription
+        : (session.subscription as any)?.id || null;
+
+    const oneYearLater = new Date();
+    oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+
+    const subscription = await this.prisma.subscription.upsert({
+      where: { userId },
+      update: {
+        planId,
+        status: 'ACTIVE',
+        autoRenew: true,
+        externalSubscriptionId: extSubId,
+        startsAt: new Date(),
+        endsAt: plan.billingPeriod === 'YEARLY' ? oneYearLater : null,
+      },
+      create: {
+        userId,
+        planId,
+        status: 'ACTIVE',
+        autoRenew: true,
+        externalSubscriptionId: extSubId,
+        startsAt: new Date(),
+        endsAt: plan.billingPeriod === 'YEARLY' ? oneYearLater : null,
+      },
+    });
+
+    // Notify admin of plan purchase
+    const purchasingUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    await this.prisma.notification.create({
+      data: {
+        userId: null,
+        title: 'New Plan Purchased',
+        message: `Member ${purchasingUser?.name || purchasingUser?.email || userId} purchased "${plan.name}" plan.`,
+        type: 'PAYMENT',
+        link: '/admin/membership',
+        isRead: false,
+      },
+    }).catch(() => {});
 
     await this.prisma.billingTransaction.upsert({
       where: { transactionId: session.id },

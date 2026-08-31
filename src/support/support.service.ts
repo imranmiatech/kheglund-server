@@ -3,19 +3,23 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSupportTicketDto } from './dto/support.dto';
 
 @Injectable()
 export class SupportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   private generateTicketNumber(): string {
     const random = Math.floor(1000 + Math.random() * 9000);
     return `T-${random}`;
   }
 
-  async createTicket(userId: string, dto: CreateSupportTicketDto) {
+  async createTicket(userId: string | undefined | null, dto: CreateSupportTicketDto) {
     const ticketNumber = this.generateTicketNumber();
     const priorityNorm = String(dto.priority || 'MEDIUM').toUpperCase();
 
@@ -24,14 +28,33 @@ export class SupportService {
       validPriority = priorityNorm as any;
     }
 
+    let userName = dto.name;
+    let userEmail = dto.email;
+    const phoneNumber = dto.phoneNumber || dto.phone;
+    const description = dto.description || dto.message || '';
+
+    if (userId) {
+      const dbUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, email: true },
+      });
+      if (dbUser) {
+        if (!userName) userName = dbUser.name;
+        if (!userEmail) userEmail = dbUser.email;
+      }
+    }
+
     const ticket = await this.prisma.supportTicket.create({
       data: {
         ticketNumber,
+        name: userName,
+        email: userEmail,
+        phoneNumber,
         subject: dto.subject,
-        description: dto.description,
+        description,
         priority: validPriority,
         status: 'OPEN',
-        userId,
+        userId: userId || null,
       },
       include: {
         user: {
@@ -44,6 +67,24 @@ export class SupportService {
         },
       },
     });
+
+    // Notify admin of new support ticket
+    await this.prisma.notification.create({
+      data: {
+        userId: null,
+        title: `New Support Ticket: ${ticketNumber}`,
+        message: `From ${userName || userEmail || 'Customer'}: "${dto.subject}"`,
+        type: 'TICKET',
+        link: '/admin/support',
+        isRead: false,
+      },
+    }).catch(() => {});
+
+    const targetEmail = userEmail || ticket.user?.email;
+    const targetName = userName || ticket.user?.name || 'Valued Customer';
+    if (targetEmail) {
+      this.mailService.sendSupportConfirmationEmail(targetEmail, targetName, ticketNumber, dto.subject);
+    }
 
     return ticket;
   }
@@ -71,6 +112,9 @@ export class SupportService {
       id: t.id,
       ticket: t.ticketNumber,
       ticketNumber: t.ticketNumber,
+      name: t.name || t.user?.name || null,
+      email: t.email || t.user?.email || null,
+      phoneNumber: t.phoneNumber || null,
       subject: t.subject,
       description: t.description,
       status: t.status === 'OPEN' ? 'Opened' : t.status === 'IN_PROGRESS' ? 'In progress' : 'Resolved',

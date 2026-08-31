@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
@@ -19,6 +19,14 @@ export enum AnnouncementKind {
   ANNOUNCEMENT = 'ANNOUNCEMENT',
   NEWS_BLOG = 'NEWS_BLOG',
 }
+
+const ToBoolean = () =>
+  Transform(({ value }) => {
+    if (value === undefined || value === null) return value;
+    if (value === 'true' || value === true || value === 1 || value === '1') return true;
+    if (value === 'false' || value === false || value === 0 || value === '0') return false;
+    return value;
+  });
 
 export class AdminAnnouncementQueryDto {
   @ApiPropertyOptional({ default: 1 })
@@ -90,16 +98,19 @@ export class CreateAnnouncementItemDto {
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()
+  @ToBoolean()
   @IsBoolean()
   isPublished?: boolean = true;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()
+  @ToBoolean()
   @IsBoolean()
   isPinned?: boolean = false;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()
+  @ToBoolean()
   @IsBoolean()
   shareWithAnyone?: boolean = false;
 
@@ -142,16 +153,19 @@ export class UpdateAnnouncementItemDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @ToBoolean()
   @IsBoolean()
   isPublished?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @ToBoolean()
   @IsBoolean()
   isPinned?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @ToBoolean()
   @IsBoolean()
   shareWithAnyone?: boolean;
 
@@ -169,6 +183,7 @@ export class UpdateAnnouncementItemDto {
 export class TogglePinDto {
   @ApiPropertyOptional({ default: true })
   @IsOptional()
+  @ToBoolean()
   @IsBoolean()
   isPinned?: boolean;
 }

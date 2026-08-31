@@ -19,7 +19,8 @@ export class MembershipsController {
   @Get('subscriptions/me')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get the current user subscription' })
-  getMySubscription(@CurrentUser() user: { id: string }) {
-    return this.membershipsService.getMySubscription(user.id);
+  getMySubscription(@CurrentUser() user: any) {
+    const userId = user?.id || user?.sub || user?.userId;
+    return this.membershipsService.getMySubscription(userId);
   }
 }
