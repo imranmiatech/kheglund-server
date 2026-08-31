@@ -31,6 +31,8 @@ import { SettingsModule } from './settings/settings.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 
+import { SubscribeModule } from './subscribe/subscribe.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -52,6 +54,7 @@ import { UsersModule } from './users/users.module';
     SettingsModule,
     UploadsModule,
     SupportModule,
+    SubscribeModule,
     AdminModule,
     AdminDashboardModule,
     AdminMemberModule,
