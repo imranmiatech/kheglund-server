@@ -12,62 +12,61 @@ const prisma = new PrismaClient({
 async function main() {
   const passwordHash = await bcrypt.hash('Password123!', 10);
 
-  const [freePlan, premiumPlan] = await Promise.all([
-    prisma.membershipPlan.upsert({
-      where: { slug: 'free' },
-      update: {
-        name: 'Free',
-        description: 'Starter community access',
-        priceCents: 0,
-        billingPeriod: 'MONTHLY',
-        benefits: ['Community access', 'Public updates', 'Basic profile'],
-        isActive: true,
-      },
-      create: {
-        name: 'Free',
-        slug: 'free',
-        description: 'Starter community access',
-        priceCents: 0,
-        billingPeriod: 'MONTHLY',
-        benefits: ['Community access', 'Public updates', 'Basic profile'],
-        isActive: true,
-      },
-    }),
-    prisma.membershipPlan.upsert({
-      where: { slug: 'premium' },
-      update: {
-        name: 'Premium',
-        description: 'Full access to the resource library and member content',
-        priceCents: 5200,
-        billingPeriod: 'MONTHLY',
-        benefits: [
-          'Full Resource Library Access',
-          'Unlimited Downloads',
-          'Knowledge Library',
-          'Members-Only Announcements',
-          'Priority Support',
-          'Exclusive Content',
-        ],
-        isActive: true,
-      },
-      create: {
-        name: 'Premium',
-        slug: 'premium',
-        description: 'Full access to the resource library and member content',
-        priceCents: 5200,
-        billingPeriod: 'MONTHLY',
-        benefits: [
-          'Full Resource Library Access',
-          'Unlimited Downloads',
-          'Knowledge Library',
-          'Members-Only Announcements',
-          'Priority Support',
-          'Exclusive Content',
-        ],
-        isActive: true,
-      },
-    }),
-  ]);
+  const freePlan = await prisma.membershipPlan.upsert({
+    where: { slug: 'free' },
+    update: {
+      name: 'Free',
+      description: 'Starter community access',
+      priceCents: 0,
+      billingPeriod: 'MONTHLY',
+      benefits: ['Community access', 'Public updates', 'Basic profile'],
+      isActive: true,
+    },
+    create: {
+      name: 'Free',
+      slug: 'free',
+      description: 'Starter community access',
+      priceCents: 0,
+      billingPeriod: 'MONTHLY',
+      benefits: ['Community access', 'Public updates', 'Basic profile'],
+      isActive: true,
+    },
+  });
+
+  const premiumPlan = await prisma.membershipPlan.upsert({
+    where: { slug: 'premium' },
+    update: {
+      name: 'Premium',
+      description: 'Full access to the resource library and member content',
+      priceCents: 5200,
+      billingPeriod: 'MONTHLY',
+      benefits: [
+        'Full Resource Library Access',
+        'Unlimited Downloads',
+        'Knowledge Library',
+        'Members-Only Announcements',
+        'Priority Support',
+        'Exclusive Content',
+      ],
+      isActive: true,
+    },
+    create: {
+      name: 'Premium',
+      slug: 'premium',
+      description: 'Full access to the resource library and member content',
+      priceCents: 5200,
+      billingPeriod: 'MONTHLY',
+      benefits: [
+        'Full Resource Library Access',
+        'Unlimited Downloads',
+        'Knowledge Library',
+        'Members-Only Announcements',
+        'Priority Support',
+        'Exclusive Content',
+      ],
+      isActive: true,
+    },
+  });
 
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@aria.community' },
@@ -81,6 +80,24 @@ async function main() {
       name: 'ARIA Admin',
       email: 'admin@aria.community',
       passwordHash,
+      role: 'ADMIN',
+      isActive: true,
+    },
+  });
+
+  const customAdminPasswordHash = await bcrypt.hash('12341234', 10);
+  await prisma.user.upsert({
+    where: { email: 'admin@gmail.com' },
+    update: {
+      name: 'Admin',
+      passwordHash: customAdminPasswordHash,
+      role: 'ADMIN',
+      isActive: true,
+    },
+    create: {
+      name: 'Admin',
+      email: 'admin@gmail.com',
+      passwordHash: customAdminPasswordHash,
       role: 'ADMIN',
       isActive: true,
     },
@@ -118,30 +135,30 @@ async function main() {
     },
   });
 
-  const [resourceCategory, pdfTag, articleTag] = await Promise.all([
-    prisma.resourceCategory.upsert({
-      where: { slug: 'guides' },
-      update: {
-        name: 'Guides',
-        description: 'Member guides and downloadable templates',
-      },
-      create: {
-        name: 'Guides',
-        slug: 'guides',
-        description: 'Member guides and downloadable templates',
-      },
-    }),
-    prisma.resourceTag.upsert({
-      where: { slug: 'pdf' },
-      update: { name: 'PDF' },
-      create: { name: 'PDF', slug: 'pdf' },
-    }),
-    prisma.articleTag.upsert({
-      where: { slug: 'community' },
-      update: { name: 'Community' },
-      create: { name: 'Community', slug: 'community' },
-    }),
-  ]);
+  const resourceCategory = await prisma.resourceCategory.upsert({
+    where: { slug: 'guides' },
+    update: {
+      name: 'Guides',
+      description: 'Member guides and downloadable templates',
+    },
+    create: {
+      name: 'Guides',
+      slug: 'guides',
+      description: 'Member guides and downloadable templates',
+    },
+  });
+
+  const pdfTag = await prisma.resourceTag.upsert({
+    where: { slug: 'pdf' },
+    update: { name: 'PDF' },
+    create: { name: 'PDF', slug: 'pdf' },
+  });
+
+  const articleTag = await prisma.articleTag.upsert({
+    where: { slug: 'community' },
+    update: { name: 'Community' },
+    create: { name: 'Community', slug: 'community' },
+  });
 
   const sampleUpload = await prisma.fileUpload.create({
     data: {
@@ -273,60 +290,60 @@ async function main() {
     },
   });
 
-  await Promise.all([
-    prisma.contentPage.upsert({
-      where: { slug: 'privacy-policy' },
-      update: {
-        title: 'Privacy Policy',
-        content: 'We protect member data and process account information securely.',
-        visibility: 'PUBLIC',
-        isPublished: true,
-      },
-      create: {
-        slug: 'privacy-policy',
-        title: 'Privacy Policy',
-        content: 'We protect member data and process account information securely.',
-        visibility: 'PUBLIC',
-        isPublished: true,
-      },
-    }),
-    prisma.contentPage.upsert({
-      where: { slug: 'about-us' },
-      update: {
-        title: 'About Us',
-        content: 'ARIA is a creator-focused membership community.',
-        visibility: 'PUBLIC',
-        isPublished: true,
-      },
-      create: {
-        slug: 'about-us',
-        title: 'About Us',
-        content: 'ARIA is a creator-focused membership community.',
-        visibility: 'PUBLIC',
-        isPublished: true,
-      },
-    }),
-    prisma.contactChannel.upsert({
-      where: { id: 'seed-email-channel' },
-      update: {
-        type: 'EMAIL',
-        label: 'Email Us',
-        value: 'hello@aria.community',
-        helperText: 'We respond within 24 hours',
-        sortOrder: 0,
-        isPublished: true,
-      },
-      create: {
-        id: 'seed-email-channel',
-        type: 'EMAIL',
-        label: 'Email Us',
-        value: 'hello@aria.community',
-        helperText: 'We respond within 24 hours',
-        sortOrder: 0,
-        isPublished: true,
-      },
-    }),
-  ]);
+  await prisma.contentPage.upsert({
+    where: { slug: 'privacy-policy' },
+    update: {
+      title: 'Privacy Policy',
+      content: 'We protect member data and process account information securely.',
+      visibility: 'PUBLIC',
+      isPublished: true,
+    },
+    create: {
+      slug: 'privacy-policy',
+      title: 'Privacy Policy',
+      content: 'We protect member data and process account information securely.',
+      visibility: 'PUBLIC',
+      isPublished: true,
+    },
+  });
+
+  await prisma.contentPage.upsert({
+    where: { slug: 'about-us' },
+    update: {
+      title: 'About Us',
+      content: 'ARIA is a creator-focused membership community.',
+      visibility: 'PUBLIC',
+      isPublished: true,
+    },
+    create: {
+      slug: 'about-us',
+      title: 'About Us',
+      content: 'ARIA is a creator-focused membership community.',
+      visibility: 'PUBLIC',
+      isPublished: true,
+    },
+  });
+
+  await prisma.contactChannel.upsert({
+    where: { id: 'seed-email-channel' },
+    update: {
+      type: 'EMAIL',
+      label: 'Email Us',
+      value: 'hello@aria.community',
+      helperText: 'We respond within 24 hours',
+      sortOrder: 0,
+      isPublished: true,
+    },
+    create: {
+      id: 'seed-email-channel',
+      type: 'EMAIL',
+      label: 'Email Us',
+      value: 'hello@aria.community',
+      helperText: 'We respond within 24 hours',
+      sortOrder: 0,
+      isPublished: true,
+    },
+  });
 
   await prisma.faqItem.createMany({
     data: [
