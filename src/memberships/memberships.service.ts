@@ -60,7 +60,21 @@ export class MembershipsService {
     ];
 
     const startsAt = subscription.startsAt || subscription.createdAt || userCreatedAt;
-    const endsAt = subscription.endsAt;
+    let endsAt = subscription.endsAt;
+
+    if (!endsAt && subscription.status === 'ACTIVE' && subscription.plan) {
+      const startDate = new Date(startsAt);
+      const period = String(subscription.plan.billingPeriod || '').toUpperCase();
+      if (period === 'YEARLY') {
+        const nextYear = new Date(startDate);
+        nextYear.setFullYear(nextYear.getFullYear() + 1);
+        endsAt = nextYear;
+      } else {
+        const nextMonth = new Date(startDate);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        endsAt = nextMonth;
+      }
+    }
 
     return {
       subscription: {

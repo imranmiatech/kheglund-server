@@ -120,18 +120,24 @@ async function main() {
     },
   });
 
+  const now = new Date();
+  const nextMonth = new Date(now);
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+
   await prisma.subscription.upsert({
     where: { userId: memberUser.id },
     update: {
       planId: premiumPlan.id,
       status: 'ACTIVE',
-      startsAt: new Date(),
+      startsAt: now,
+      endsAt: nextMonth,
     },
     create: {
       userId: memberUser.id,
       planId: premiumPlan.id,
       status: 'ACTIVE',
-      startsAt: new Date(),
+      startsAt: now,
+      endsAt: nextMonth,
     },
   });
 
