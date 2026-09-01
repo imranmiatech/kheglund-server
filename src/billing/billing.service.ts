@@ -59,6 +59,7 @@ export class BillingService {
       currentPlan: subscription?.plan ?? null,
       subscriptionStatus: subscription?.status ?? 'INACTIVE',
       transactions,
+      history: transactions,
       totalSpentCents,
     };
   }
@@ -312,13 +313,14 @@ export class BillingService {
       include: {
         plan: true,
         subscription: true,
+        user: true,
       },
     });
 
     if (!transaction) {
       transaction = await this.prisma.billingTransaction.findFirst({
         where: { transactionId },
-        include: { plan: true, subscription: true },
+        include: { plan: true, subscription: true, user: true },
       });
     }
 
@@ -335,6 +337,8 @@ export class BillingService {
       status: transaction.status,
       createdAt: transaction.createdAt,
       paidAt: transaction.paidAt,
+      memberName: transaction.user?.name || null,
+      memberEmail: transaction.user?.email || null,
       pdfUrl: null,
       invoiceUrl: null,
     };

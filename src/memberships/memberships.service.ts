@@ -19,9 +19,58 @@ export class MembershipsService {
       include: { plan: true },
     });
 
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { createdAt: true },
+    });
+
+    const userCreatedAt = user?.createdAt ?? new Date();
+
+    if (!subscription) {
+      return {
+        subscription: {
+          id: null,
+          userId,
+          status: 'INACTIVE',
+          startsAt: userCreatedAt,
+          endsAt: null,
+          autoRenew: false,
+          createdAt: userCreatedAt,
+          plan: null,
+        },
+        features: [
+          'Basic Resource Library Access',
+          'Free Announcements & Blogs',
+          'Standard Support',
+        ],
+      };
+    }
+
+    const planBenefits = Array.isArray(subscription.plan?.benefits)
+      ? (subscription.plan?.benefits as string[])
+      : [];
+
+    const defaultFeatures = [
+      'Full Resource Library Access',
+      'Unlimited Downloads',
+      'Knowledge Library',
+      'Members-Only Announcements',
+      'Priority Support',
+      'Exclusive Content',
+    ];
+
+    const startsAt = subscription.startsAt || subscription.createdAt || userCreatedAt;
+    const endsAt = subscription.endsAt;
+
     return {
-      subscription,
-      features: subscription?.plan?.benefits ?? [],
+      subscription: {
+        ...subscription,
+        startsAt,
+        endsAt,
+        currentPeriodStart: startsAt,
+        currentPeriodEnd: endsAt,
+      },
+      features: planBenefits.length > 0 ? planBenefits : defaultFeatures,
     };
   }
 
