@@ -192,4 +192,52 @@ export class NotificationsService {
 
     return { success: true, message: 'All notifications marked as read.' };
   }
+
+  async deleteNotification(id: string, _userId?: string) {
+    const existing = await this.prisma.notification.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Notification with ID ${id} not found.`);
+    }
+
+    await this.prisma.notification.delete({
+      where: { id },
+    });
+
+    return { success: true, message: 'Notification deleted successfully.' };
+  }
+
+  async clearAllNotifications(userId?: string, userRole?: string) {
+    let role = userRole ? String(userRole).toUpperCase() : null;
+    if (userId && !role) {
+      const dbUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      role = dbUser?.role ? String(dbUser.role).toUpperCase() : 'MEMBER';
+    }
+
+    const isAdmin = role === 'ADMIN';
+
+    let where: any = {};
+    if (!isAdmin && userId) {
+      where = {
+        OR: [
+          { userId },
+          {
+            userId: null,
+            type: { in: ['ANNOUNCEMENT', 'INFO', 'SYSTEM'] },
+          },
+        ],
+        NOT: {
+          type: { in: ['USER_JOIN', 'PAYMENT', 'COMMENT'] },
+        },
+      };
+    }
+
+    await this.prisma.notification.deleteMany({
+      where,
+    });
+
+    return { success: true, message: 'All notifications cleared successfully.' };
+  }
 }
