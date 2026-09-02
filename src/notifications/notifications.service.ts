@@ -5,6 +5,74 @@ import { PrismaService } from '../prisma/prisma.service';
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private getWhereClause(userId?: string, role?: string, unreadOnly = false) {
+    const isAdmin = role === 'ADMIN';
+
+    const adminOnlyTypes = [
+      'USER_JOIN',
+      'COMMENT',
+      'CONTACT_SUBMISSION',
+      'ADMIN_ALERT',
+      'ADMIN_TICKET',
+      'PAYMENT',
+      'TICKET',
+    ];
+    const memberBroadcastTypes = [
+      'ANNOUNCEMENT',
+      'INFO',
+      'SYSTEM',
+      'RESOURCE',
+      'ARTICLE',
+    ];
+    const adminBroadcastTypes = [
+      'USER_JOIN',
+      'PAYMENT',
+      'TICKET',
+      'ADMIN_TICKET',
+      'COMMENT',
+      'CONTACT_SUBMISSION',
+      'ADMIN_ALERT',
+    ];
+
+    let where: any = {};
+    if (isAdmin) {
+      where = {
+        OR: [
+          ...(userId ? [{ userId }] : []),
+          {
+            userId: null,
+            OR: [
+              { type: { in: adminBroadcastTypes } },
+              { link: { startsWith: '/admin' } },
+              { title: { startsWith: 'Admin' } },
+            ],
+          },
+        ],
+      };
+    } else {
+      where = {
+        OR: [
+          ...(userId ? [{ userId }] : []),
+          {
+            userId: null,
+            type: { in: memberBroadcastTypes },
+          },
+        ],
+        NOT: [
+          { type: { in: adminOnlyTypes } },
+          { link: { startsWith: '/admin' } },
+          { title: { startsWith: 'Admin' } },
+        ],
+      };
+    }
+
+    if (unreadOnly) {
+      where.isRead = false;
+    }
+
+    return { where, isAdmin };
+  }
+
   async getUserNotifications(userId?: string, userRole?: string) {
     let role = userRole ? String(userRole).toUpperCase() : null;
     if (userId && !role) {
@@ -15,49 +83,7 @@ export class NotificationsService {
       role = dbUser?.role ? String(dbUser.role).toUpperCase() : 'MEMBER';
     }
 
-    const isAdmin = role === 'ADMIN';
-
-    const adminOnlyTypes = ['USER_JOIN', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'ADMIN_TICKET'];
-    const memberBroadcastTypes = ['ANNOUNCEMENT', 'INFO', 'SYSTEM', 'RESOURCE', 'ARTICLE'];
-    const adminBroadcastTypes = ['USER_JOIN', 'PAYMENT', 'TICKET', 'ADMIN_TICKET', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'SYSTEM'];
-
-    let where: any = {};
-    if (isAdmin) {
-      if (userId) {
-        where = {
-          OR: [
-            { userId },
-            {
-              userId: null,
-              type: { in: adminBroadcastTypes },
-            },
-          ],
-        };
-      } else {
-        where = {
-          userId: null,
-          type: { in: adminBroadcastTypes },
-        };
-      }
-    } else if (userId) {
-      where = {
-        OR: [
-          { userId },
-          {
-            userId: null,
-            type: { in: memberBroadcastTypes },
-          },
-        ],
-        NOT: {
-          type: { in: adminOnlyTypes },
-        },
-      };
-    } else {
-      where = {
-        userId: null,
-        type: { in: memberBroadcastTypes },
-      };
-    }
+    const { where, isAdmin } = this.getWhereClause(userId, role || 'MEMBER');
 
     let notifications = await this.prisma.notification.findMany({
       where,
@@ -149,53 +175,7 @@ export class NotificationsService {
       role = dbUser?.role ? String(dbUser.role).toUpperCase() : 'MEMBER';
     }
 
-    const isAdmin = role === 'ADMIN';
-    const adminOnlyTypes = ['USER_JOIN', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'ADMIN_TICKET'];
-    const memberBroadcastTypes = ['ANNOUNCEMENT', 'INFO', 'SYSTEM', 'RESOURCE', 'ARTICLE'];
-    const adminBroadcastTypes = ['USER_JOIN', 'PAYMENT', 'TICKET', 'ADMIN_TICKET', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'SYSTEM'];
-
-    let where: any = { isRead: false };
-    if (isAdmin) {
-      if (userId) {
-        where = {
-          isRead: false,
-          OR: [
-            { userId },
-            {
-              userId: null,
-              type: { in: adminBroadcastTypes },
-            },
-          ],
-        };
-      } else {
-        where = {
-          isRead: false,
-          userId: null,
-          type: { in: adminBroadcastTypes },
-        };
-      }
-    } else if (userId) {
-      where = {
-        isRead: false,
-        OR: [
-          { userId },
-          {
-            userId: null,
-            type: { in: memberBroadcastTypes },
-          },
-        ],
-        NOT: {
-          type: { in: adminOnlyTypes },
-        },
-      };
-    } else {
-      where = {
-        isRead: false,
-        userId: null,
-        type: { in: memberBroadcastTypes },
-      };
-    }
-
+    const { where } = this.getWhereClause(userId, role || 'MEMBER', true);
     const unreadCount = await this.prisma.notification.count({ where });
     return { unreadCount };
   }
@@ -222,48 +202,7 @@ export class NotificationsService {
       role = dbUser?.role ? String(dbUser.role).toUpperCase() : 'MEMBER';
     }
 
-    const isAdmin = role === 'ADMIN';
-    const adminOnlyTypes = ['USER_JOIN', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'ADMIN_TICKET'];
-    const memberBroadcastTypes = ['ANNOUNCEMENT', 'INFO', 'SYSTEM', 'RESOURCE', 'ARTICLE'];
-    const adminBroadcastTypes = ['USER_JOIN', 'PAYMENT', 'TICKET', 'ADMIN_TICKET', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'SYSTEM'];
-
-    let where: any = {};
-    if (isAdmin) {
-      if (userId) {
-        where = {
-          OR: [
-            { userId },
-            {
-              userId: null,
-              type: { in: adminBroadcastTypes },
-            },
-          ],
-        };
-      } else {
-        where = {
-          userId: null,
-          type: { in: adminBroadcastTypes },
-        };
-      }
-    } else if (userId) {
-      where = {
-        OR: [
-          { userId },
-          {
-            userId: null,
-            type: { in: memberBroadcastTypes },
-          },
-        ],
-        NOT: {
-          type: { in: adminOnlyTypes },
-        },
-      };
-    } else {
-      where = {
-        userId: null,
-        type: { in: memberBroadcastTypes },
-      };
-    }
+    const { where } = this.getWhereClause(userId, role || 'MEMBER');
 
     await this.prisma.notification.updateMany({
       where,
@@ -296,48 +235,7 @@ export class NotificationsService {
       role = dbUser?.role ? String(dbUser.role).toUpperCase() : 'MEMBER';
     }
 
-    const isAdmin = role === 'ADMIN';
-    const adminOnlyTypes = ['USER_JOIN', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'ADMIN_TICKET'];
-    const memberBroadcastTypes = ['ANNOUNCEMENT', 'INFO', 'SYSTEM', 'RESOURCE', 'ARTICLE'];
-    const adminBroadcastTypes = ['USER_JOIN', 'PAYMENT', 'TICKET', 'ADMIN_TICKET', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'SYSTEM'];
-
-    let where: any = {};
-    if (isAdmin) {
-      if (userId) {
-        where = {
-          OR: [
-            { userId },
-            {
-              userId: null,
-              type: { in: adminBroadcastTypes },
-            },
-          ],
-        };
-      } else {
-        where = {
-          userId: null,
-          type: { in: adminBroadcastTypes },
-        };
-      }
-    } else if (userId) {
-      where = {
-        OR: [
-          { userId },
-          {
-            userId: null,
-            type: { in: memberBroadcastTypes },
-          },
-        ],
-        NOT: {
-          type: { in: adminOnlyTypes },
-        },
-      };
-    } else {
-      where = {
-        userId: null,
-        type: { in: memberBroadcastTypes },
-      };
-    }
+    const { where } = this.getWhereClause(userId, role || 'MEMBER');
 
     await this.prisma.notification.deleteMany({
       where,
