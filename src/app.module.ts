@@ -33,6 +33,8 @@ import { UsersModule } from './users/users.module';
 
 import { SubscribeModule } from './subscribe/subscribe.module';
 
+import { SearchModule } from './search/search.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -42,6 +44,7 @@ import { SubscribeModule } from './subscribe/subscribe.module';
     PrismaModule,
     MailModule,
     NotificationsModule,
+    SearchModule,
     AuthModule,
     UsersModule,
     MembershipsModule,
