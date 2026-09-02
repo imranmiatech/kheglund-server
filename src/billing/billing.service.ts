@@ -506,6 +506,18 @@ export class BillingService {
       },
     }).catch(() => {});
 
+    // Notify user of their subscription activation
+    await this.prisma.notification.create({
+      data: {
+        userId: userId,
+        title: 'Subscription Activated',
+        message: `Your "${plan.name}" plan subscription is now active.`,
+        type: 'PAYMENT',
+        link: '/dashboard',
+        isRead: false,
+      },
+    }).catch(() => {});
+
     await this.prisma.billingTransaction.upsert({
       where: { transactionId: session.id },
       update: {

@@ -74,7 +74,7 @@ export class SupportService {
         userId: null,
         title: `New Support Ticket: ${ticketNumber}`,
         message: `From ${userName || userEmail || 'Customer'}: "${dto.subject}"`,
-        type: 'TICKET',
+        type: 'ADMIN_TICKET',
         link: '/admin/support',
         isRead: false,
       },

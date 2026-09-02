@@ -284,7 +284,7 @@ export class AdminSupportService {
         title: `Ticket Updated: ${updated.ticketNumber}`,
         message: `Status set to ${formattedStatus} for subject "${updated.subject}".`,
         type: 'TICKET',
-        link: '/admin/support',
+        link: existing.userId ? '/dashboard' : '/admin/support',
         isRead: false,
       },
     }).catch(() => {});
@@ -345,7 +345,7 @@ export class AdminSupportService {
         title: `New Reply on Ticket: ${existing.ticketNumber}`,
         message: `Response: "${payload.message.slice(0, 80)}"`,
         type: 'TICKET',
-        link: '/admin/support',
+        link: existing.userId ? '/dashboard' : '/admin/support',
         isRead: false,
       },
     }).catch(() => {});

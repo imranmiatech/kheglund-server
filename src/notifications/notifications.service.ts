@@ -17,26 +17,45 @@ export class NotificationsService {
 
     const isAdmin = role === 'ADMIN';
 
+    const adminOnlyTypes = ['USER_JOIN', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'ADMIN_TICKET'];
+    const memberBroadcastTypes = ['ANNOUNCEMENT', 'INFO', 'SYSTEM', 'RESOURCE', 'ARTICLE'];
+    const adminBroadcastTypes = ['USER_JOIN', 'PAYMENT', 'TICKET', 'ADMIN_TICKET', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'SYSTEM'];
+
     let where: any = {};
     if (isAdmin) {
-      where = {};
+      if (userId) {
+        where = {
+          OR: [
+            { userId },
+            {
+              userId: null,
+              type: { in: adminBroadcastTypes },
+            },
+          ],
+        };
+      } else {
+        where = {
+          userId: null,
+          type: { in: adminBroadcastTypes },
+        };
+      }
     } else if (userId) {
       where = {
         OR: [
           { userId },
           {
             userId: null,
-            type: { in: ['ANNOUNCEMENT', 'INFO', 'SYSTEM'] },
+            type: { in: memberBroadcastTypes },
           },
         ],
         NOT: {
-          type: { in: ['USER_JOIN', 'PAYMENT', 'COMMENT'] },
+          type: { in: adminOnlyTypes },
         },
       };
     } else {
       where = {
         userId: null,
-        type: { in: ['ANNOUNCEMENT', 'INFO', 'SYSTEM'] },
+        type: { in: memberBroadcastTypes },
       };
     }
 
@@ -50,11 +69,27 @@ export class NotificationsService {
       const seedItems = isAdmin
         ? [
             {
-              userId: null,
-              title: 'Admin Alert: Welcome Administrator',
-              message: 'You have full access to manage members, content, and notifications.',
-              type: 'SYSTEM',
+              userId: userId || null,
+              title: 'Admin Control Center Active',
+              message: 'You have full administrative access to manage members, content, and system alerts.',
+              type: 'ADMIN_ALERT',
               link: '/admin',
+              isRead: false,
+            },
+            {
+              userId: null,
+              title: 'Member Registrations Monitored',
+              message: 'New user signups and plan upgrades will appear in this feed.',
+              type: 'USER_JOIN',
+              link: '/admin/member',
+              isRead: false,
+            },
+            {
+              userId: null,
+              title: 'Support Queue Ready',
+              message: 'Support tickets submitted by users are logged here for quick resolution.',
+              type: 'ADMIN_TICKET',
+              link: '/admin/support',
               isRead: false,
             },
           ]
@@ -115,9 +150,12 @@ export class NotificationsService {
     }
 
     const isAdmin = role === 'ADMIN';
+    const adminOnlyTypes = ['USER_JOIN', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'ADMIN_TICKET'];
+    const memberBroadcastTypes = ['ANNOUNCEMENT', 'INFO', 'SYSTEM', 'RESOURCE', 'ARTICLE'];
+    const adminBroadcastTypes = ['USER_JOIN', 'PAYMENT', 'TICKET', 'ADMIN_TICKET', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'SYSTEM'];
 
     let where: any = { isRead: false };
-    if (!isAdmin) {
+    if (isAdmin) {
       if (userId) {
         where = {
           isRead: false,
@@ -125,20 +163,37 @@ export class NotificationsService {
             { userId },
             {
               userId: null,
-              type: { in: ['ANNOUNCEMENT', 'INFO', 'SYSTEM'] },
+              type: { in: adminBroadcastTypes },
             },
           ],
-          NOT: {
-            type: { in: ['USER_JOIN', 'PAYMENT', 'COMMENT'] },
-          },
         };
       } else {
         where = {
           isRead: false,
           userId: null,
-          type: { in: ['ANNOUNCEMENT', 'INFO', 'SYSTEM'] },
+          type: { in: adminBroadcastTypes },
         };
       }
+    } else if (userId) {
+      where = {
+        isRead: false,
+        OR: [
+          { userId },
+          {
+            userId: null,
+            type: { in: memberBroadcastTypes },
+          },
+        ],
+        NOT: {
+          type: { in: adminOnlyTypes },
+        },
+      };
+    } else {
+      where = {
+        isRead: false,
+        userId: null,
+        type: { in: memberBroadcastTypes },
+      };
     }
 
     const unreadCount = await this.prisma.notification.count({ where });
@@ -168,20 +223,45 @@ export class NotificationsService {
     }
 
     const isAdmin = role === 'ADMIN';
+    const adminOnlyTypes = ['USER_JOIN', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'ADMIN_TICKET'];
+    const memberBroadcastTypes = ['ANNOUNCEMENT', 'INFO', 'SYSTEM', 'RESOURCE', 'ARTICLE'];
+    const adminBroadcastTypes = ['USER_JOIN', 'PAYMENT', 'TICKET', 'ADMIN_TICKET', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'SYSTEM'];
 
     let where: any = {};
-    if (!isAdmin && userId) {
+    if (isAdmin) {
+      if (userId) {
+        where = {
+          OR: [
+            { userId },
+            {
+              userId: null,
+              type: { in: adminBroadcastTypes },
+            },
+          ],
+        };
+      } else {
+        where = {
+          userId: null,
+          type: { in: adminBroadcastTypes },
+        };
+      }
+    } else if (userId) {
       where = {
         OR: [
           { userId },
           {
             userId: null,
-            type: { in: ['ANNOUNCEMENT', 'INFO', 'SYSTEM'] },
+            type: { in: memberBroadcastTypes },
           },
         ],
         NOT: {
-          type: { in: ['USER_JOIN', 'PAYMENT', 'COMMENT'] },
+          type: { in: adminOnlyTypes },
         },
+      };
+    } else {
+      where = {
+        userId: null,
+        type: { in: memberBroadcastTypes },
       };
     }
 
@@ -217,20 +297,45 @@ export class NotificationsService {
     }
 
     const isAdmin = role === 'ADMIN';
+    const adminOnlyTypes = ['USER_JOIN', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'ADMIN_TICKET'];
+    const memberBroadcastTypes = ['ANNOUNCEMENT', 'INFO', 'SYSTEM', 'RESOURCE', 'ARTICLE'];
+    const adminBroadcastTypes = ['USER_JOIN', 'PAYMENT', 'TICKET', 'ADMIN_TICKET', 'COMMENT', 'CONTACT_SUBMISSION', 'ADMIN_ALERT', 'SYSTEM'];
 
     let where: any = {};
-    if (!isAdmin && userId) {
+    if (isAdmin) {
+      if (userId) {
+        where = {
+          OR: [
+            { userId },
+            {
+              userId: null,
+              type: { in: adminBroadcastTypes },
+            },
+          ],
+        };
+      } else {
+        where = {
+          userId: null,
+          type: { in: adminBroadcastTypes },
+        };
+      }
+    } else if (userId) {
       where = {
         OR: [
           { userId },
           {
             userId: null,
-            type: { in: ['ANNOUNCEMENT', 'INFO', 'SYSTEM'] },
+            type: { in: memberBroadcastTypes },
           },
         ],
         NOT: {
-          type: { in: ['USER_JOIN', 'PAYMENT', 'COMMENT'] },
+          type: { in: adminOnlyTypes },
         },
+      };
+    } else {
+      where = {
+        userId: null,
+        type: { in: memberBroadcastTypes },
       };
     }
 
