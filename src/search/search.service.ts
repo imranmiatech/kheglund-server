@@ -27,7 +27,7 @@ export class SearchService {
     const isAdmin = (userRole || '').toUpperCase() === 'ADMIN';
     const results: SearchResultItem[] = [];
 
-    // 1. Search Resources
+    // 1. Search Resources (Both CONTENT and LIBRARY targetModules)
     const resources = await this.prisma.resource.findMany({
       where: {
         AND: [
@@ -42,7 +42,7 @@ export class SearchService {
           },
         ],
       },
-      take: 10,
+      take: 15,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -56,13 +56,20 @@ export class SearchService {
     });
 
     for (const r of resources) {
+      const isLibrary = String(r.targetModule || '').toUpperCase() === 'LIBRARY';
       results.push({
         id: r.id,
         title: r.title,
-        subtitle: r.summary || r.description?.slice(0, 100) || r.kind || 'Resource',
+        subtitle: r.summary || r.description?.slice(0, 90) || (isLibrary ? 'Library Resource' : 'Content Resource'),
         type: 'RESOURCE',
-        category: 'Resource',
-        url: isAdmin ? `/admin/library` : `/dashboard/library?search=${encodeURIComponent(q)}`,
+        category: isLibrary ? 'Library' : 'Resource',
+        url: isAdmin
+          ? isLibrary
+            ? `/admin/library`
+            : `/admin/content/${r.id}`
+          : isLibrary
+            ? `/dashboard/library`
+            : `/dashboard/resources`,
         createdAt: r.createdAt,
       });
     }
@@ -95,7 +102,7 @@ export class SearchService {
       results.push({
         id: a.id,
         title: a.title,
-        subtitle: a.summary || 'Article',
+        subtitle: a.summary || 'Article Blog',
         type: 'ARTICLE',
         category: 'Article',
         url: isAdmin ? `/admin/content/${a.id}` : `/dashboard/announcement-blogs`,
@@ -139,7 +146,7 @@ export class SearchService {
       });
     }
 
-    // 4. Admin Only: Search Members/Users
+    // 4. Admin Only: Search Members
     if (isAdmin) {
       const users = await this.prisma.user.findMany({
         where: {
